@@ -1,8 +1,9 @@
+
 -- =================================================================
 --
---           PolitiRate Supabase Database Schema
+--           PolitiRate Supabase Database Schema (Complete)
 --
--- This script will create all necessary tables, types, functions,
+-- This script creates all necessary tables, types, functions,
 -- and security policies for the PolitiRate application.
 --
 -- Run this script in your Supabase SQL Editor.
@@ -16,11 +17,13 @@ DROP TABLE IF EXISTS "public"."poll_options" CASCADE;
 DROP TABLE IF EXISTS "public"."poll_questions" CASCADE;
 DROP TABLE IF EXISTS "public"."polls" CASCADE;
 DROP TABLE IF EXISTS "public"."support_tickets" CASCADE;
+DROP TABLE IF EXISTS "public"."notifications" CASCADE;
 DROP TABLE IF EXISTS "public"."admin_messages" CASCADE;
 DROP TABLE IF EXISTS "public"."ratings" CASCADE;
 DROP TABLE IF EXISTS "public"."leaders" CASCADE;
 DROP TABLE IF EXISTS "public"."site_settings" CASCADE;
 DROP TABLE IF EXISTS "public"."profiles" CASCADE;
+DROP TABLE IF EXISTS "public"."users" CASCADE;
 
 DROP TYPE IF EXISTS "public"."gender_enum";
 DROP TYPE IF EXISTS "public"."election_type_enum";
@@ -29,6 +32,7 @@ DROP TYPE IF EXISTS "public"."election_status_enum";
 DROP TYPE IF EXISTS "public"."question_type_enum";
 DROP TYPE IF EXISTS "public"."ticket_status_enum";
 DROP TYPE IF EXISTS "public"."social_behaviour_enum";
+DROP TYPE IF EXISTS "public"."notification_type_enum";
 
 -- =============================================
 -- 1. Custom Types (ENUMs) for Data Integrity
@@ -44,13 +48,33 @@ CREATE TYPE "public"."social_behaviour_enum" AS ENUM (
     'social-worker', 'honest', 'corrupt', 'criminal',
     'aggressive', 'humble', 'fraud', 'average'
 );
-
+CREATE TYPE "public"."notification_type_enum" AS ENUM ('info', 'warning', 'success', 'error');
 
 -- =============================================
 -- 2. Table Creation
 -- =============================================
 
--- Profiles table linked to Supabase Auth users
+-- Users table (extending auth.users with profile data)
+CREATE TABLE "public"."users" (
+    "id" "uuid" NOT NULL,
+    "email" "text" NOT NULL,
+    "name" "text",
+    "gender" "public"."gender_enum",
+    "age" "int2",
+    "state" "text",
+    "mpConstituency" "text",
+    "mlaConstituency" "text",
+    "panchayat" "text",
+    "createdAt" "timestamptz" DEFAULT "now"() NOT NULL,
+    "isBlocked" "bool" DEFAULT false NOT NULL,
+    "blockedUntil" "timestamptz",
+    "blockReason" "text",
+    CONSTRAINT "users_pkey" PRIMARY KEY ("id"),
+    CONSTRAINT "users_id_fkey" FOREIGN KEY ("id") REFERENCES "auth"."users"("id") ON DELETE CASCADE
+);
+ALTER TABLE "public"."users" ENABLE ROW LEVEL SECURITY;
+
+-- Profiles table (for additional user profile data)
 CREATE TABLE "public"."profiles" (
     "id" "uuid" NOT NULL,
     "name" "text",
@@ -73,40 +97,40 @@ ALTER TABLE "public"."profiles" ENABLE ROW LEVEL SECURITY;
 CREATE TABLE "public"."leaders" (
     "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
     "name" "text" NOT NULL,
-    "party_name" "text" NOT NULL,
+    "partyName" "text" NOT NULL,
     "gender" "public"."gender_enum" NOT NULL,
     "age" "int2" NOT NULL,
-    "photo_url" "text",
+    "photoUrl" "text",
     "constituency" "text" NOT NULL,
-    "native_address" "text" NOT NULL,
-    "election_type" "public"."election_type_enum" NOT NULL,
+    "nativeAddress" "text" NOT NULL,
+    "electionType" "public"."election_type_enum" NOT NULL,
     "location" "jsonb",
-    "rating" "float4" DEFAULT '0'::"real" NOT NULL,
-    "review_count" "int4" DEFAULT 0 NOT NULL,
-    "previous_elections" "jsonb",
-    "manifesto_url" "text",
-    "twitter_url" "text",
-    "added_by_user_id" "uuid",
-    "created_at" "timestamptz" DEFAULT "now"() NOT NULL,
+    "rating" "float4" DEFAULT '0'::real NOT NULL,
+    "reviewCount" "int4" DEFAULT 0 NOT NULL,
+    "previousElections" "jsonb",
+    "manifestoUrl" "text",
+    "twitterUrl" "text",
+    "addedByUserId" "uuid",
+    "createdAt" "timestamptz" DEFAULT "now"() NOT NULL,
     "status" "public"."leader_status_enum" DEFAULT 'pending'::"public"."leader_status_enum" NOT NULL,
-    "admin_comment" "text",
+    "adminComment" "text",
     CONSTRAINT "leaders_pkey" PRIMARY KEY ("id"),
-    CONSTRAINT "leaders_added_by_user_id_fkey" FOREIGN KEY ("added_by_user_id") REFERENCES "auth"."users"("id") ON DELETE SET NULL
+    CONSTRAINT "leaders_addedByUserId_fkey" FOREIGN KEY ("addedByUserId") REFERENCES "auth"."users"("id") ON DELETE SET NULL
 );
 ALTER TABLE "public"."leaders" ENABLE ROW LEVEL SECURITY;
 
 -- Ratings table
 CREATE TABLE "public"."ratings" (
-    "user_id" "uuid" NOT NULL,
-    "leader_id" "uuid" NOT NULL,
+    "userId" "uuid" NOT NULL,
+    "leaderId" "uuid" NOT NULL,
     "rating" "int2" NOT NULL,
-    "social_behaviour" "public"."social_behaviour_enum",
+    "socialBehaviour" "public"."social_behaviour_enum",
     "comment" "text",
-    "created_at" "timestamptz" DEFAULT "now"() NOT NULL,
-    "updated_at" "timestamptz" DEFAULT "now"() NOT NULL,
-    CONSTRAINT "ratings_pkey" PRIMARY KEY ("user_id", "leader_id"),
-    CONSTRAINT "ratings_leader_id_fkey" FOREIGN KEY ("leader_id") REFERENCES "public"."leaders"("id") ON DELETE CASCADE,
-    CONSTRAINT "ratings_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "auth"."users"("id") ON DELETE CASCADE,
+    "createdAt" "timestamptz" DEFAULT "now"() NOT NULL,
+    "updatedAt" "timestamptz" DEFAULT "now"() NOT NULL,
+    CONSTRAINT "ratings_pkey" PRIMARY KEY ("userId", "leaderId"),
+    CONSTRAINT "ratings_leaderId_fkey" FOREIGN KEY ("leaderId") REFERENCES "public"."leaders"("id") ON DELETE CASCADE,
+    CONSTRAINT "ratings_userId_fkey" FOREIGN KEY ("userId") REFERENCES "auth"."users"("id") ON DELETE CASCADE,
     CONSTRAINT "ratings_rating_check" CHECK (("rating" >= 1) AND ("rating" <= 5))
 );
 ALTER TABLE "public"."ratings" ENABLE ROW LEVEL SECURITY;
@@ -117,16 +141,28 @@ CREATE TABLE "public"."site_settings" (
     "value" "text",
     CONSTRAINT "site_settings_pkey" PRIMARY KEY ("key")
 );
--- RLS for settings: public read, admin write
 ALTER TABLE "public"."site_settings" ENABLE ROW LEVEL SECURITY;
+
+-- Notifications table
+CREATE TABLE "public"."notifications" (
+    "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
+    "title" "text" NOT NULL,
+    "message" "text" NOT NULL,
+    "type" "public"."notification_type_enum" DEFAULT 'info'::"public"."notification_type_enum" NOT NULL,
+    "isActive" "bool" DEFAULT true NOT NULL,
+    "createdAt" "timestamptz" DEFAULT "now"() NOT NULL,
+    "expiresAt" "timestamptz",
+    CONSTRAINT "notifications_pkey" PRIMARY KEY ("id")
+);
+ALTER TABLE "public"."notifications" ENABLE ROW LEVEL SECURITY;
 
 -- Admin Messages table
 CREATE TABLE "public"."admin_messages" (
     "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
     "user_id" "uuid" NOT NULL,
     "message" "text" NOT NULL,
-    "is_read" "bool" DEFAULT false NOT NULL,
-    "created_at" "timestamptz" DEFAULT "now"() NOT NULL,
+    "isRead" "bool" DEFAULT false NOT NULL,
+    "createdAt" "timestamptz" DEFAULT "now"() NOT NULL,
     CONSTRAINT "admin_messages_pkey" PRIMARY KEY ("id"),
     CONSTRAINT "admin_messages_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "auth"."users"("id") ON DELETE CASCADE
 );
@@ -209,45 +245,99 @@ CREATE TABLE "public"."poll_answers" (
 ALTER TABLE "public"."poll_answers" ENABLE ROW LEVEL SECURITY;
 
 -- =============================================
--- 3. Database Functions & Triggers
+-- 3. Functions and Triggers
 -- =============================================
 
 -- Function to check if a user is an admin
--- In a real app, you would have a more secure way to manage roles.
--- For this prototype, we'll check against a specific email.
 CREATE OR REPLACE FUNCTION "public"."is_admin"()
 RETURNS boolean
-LANGUAGE "plpgsql"
-AS $$
-BEGIN
-  RETURN auth.jwt()->>'email' = 'Admin';
-END;
-$$;
-
-
--- Function to create a user profile automatically on new user signup
-CREATE OR REPLACE FUNCTION "public"."handle_new_user"()
-RETURNS "trigger"
 LANGUAGE "plpgsql"
 SECURITY DEFINER
 AS $$
 BEGIN
+  RETURN auth.jwt()->>'email' = 'admin@politirate.com' OR 
+         auth.jwt()->>'role' = 'admin' OR
+         auth.jwt()->>'user_role' = 'admin';
+END;
+$$;
+
+-- Function to ensure a user profile exists
+CREATE OR REPLACE FUNCTION "public"."ensure_user_profile_exists"()
+RETURNS void
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+BEGIN
+  -- Insert into users table if not exists
+  INSERT INTO public.users (id, email, name)
+  SELECT 
+    auth.uid(), 
+    auth.jwt() ->> 'email',
+    COALESCE(
+      auth.jwt() ->> 'user_metadata' ->> 'name', 
+      auth.jwt() ->> 'user_metadata' ->> 'full_name',
+      split_part(auth.jwt() ->> 'email', '@', 1)
+    )
+  WHERE auth.uid() IS NOT NULL
+  AND NOT EXISTS (SELECT 1 FROM public.users WHERE id = auth.uid());
+  
+  -- Also insert into profiles table for backward compatibility
   INSERT INTO public.profiles (id, name)
-  VALUES (NEW.id, NEW.raw_user_meta_data->>'displayName');
+  SELECT 
+    auth.uid(), 
+    COALESCE(
+      auth.jwt() ->> 'user_metadata' ->> 'name', 
+      auth.jwt() ->> 'user_metadata' ->> 'full_name',
+      split_part(auth.jwt() ->> 'email', '@', 1)
+    )
+  WHERE auth.uid() IS NOT NULL
+  AND NOT EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid());
+END;
+$$;
+
+-- Function to handle new user signup
+CREATE OR REPLACE FUNCTION "public"."handle_new_user"()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+BEGIN
+  -- Insert into users table
+  INSERT INTO public.users (id, email, name)
+  VALUES (
+    NEW.id,
+    NEW.email,
+    COALESCE(
+      NEW.raw_user_meta_data ->> 'name', 
+      NEW.raw_user_meta_data ->> 'full_name',
+      split_part(NEW.email, '@', 1)
+    )
+  );
+  
+  -- Insert into profiles table for backward compatibility
+  INSERT INTO public.profiles (id, name)
+  VALUES (
+    NEW.id,
+    COALESCE(
+      NEW.raw_user_meta_data ->> 'name', 
+      NEW.raw_user_meta_data ->> 'full_name',
+      split_part(NEW.email, '@', 1)
+    )
+  );
+  
   RETURN NEW;
 END;
 $$;
 
--- Trigger to call handle_new_user on new user creation
-CREATE TRIGGER "on_auth_user_created"
-AFTER INSERT ON "auth"."users"
-FOR EACH ROW EXECUTE PROCEDURE "public"."handle_new_user"();
+-- Trigger to automatically create profile on user signup
+CREATE OR REPLACE TRIGGER "on_auth_user_created"
+  AFTER INSERT ON "auth"."users"
+  FOR EACH ROW EXECUTE FUNCTION "public"."handle_new_user"();
 
-
--- Function to update the average rating and review count on the leaders table
+-- Function to update leader ratings
 CREATE OR REPLACE FUNCTION "public"."update_leader_rating"()
-RETURNS "trigger"
-LANGUAGE "plpgsql"
+RETURNS trigger
+LANGUAGE plpgsql
 AS $$
 DECLARE
   new_rating float4;
@@ -262,48 +352,173 @@ BEGIN
   FROM
     public.ratings
   WHERE
-    leader_id = COALESCE(NEW.leader_id, OLD.leader_id);
+    "leaderId" = COALESCE(NEW."leaderId", OLD."leaderId");
 
   UPDATE public.leaders
   SET
     rating = COALESCE(new_rating, 0),
-    review_count = COALESCE(new_review_count, 0)
+    "reviewCount" = COALESCE(new_review_count, 0)
   WHERE
-    id = COALESCE(NEW.leader_id, OLD.leader_id);
+    id = COALESCE(NEW."leaderId", OLD."leaderId");
 
   RETURN NULL;
 END;
 $$;
 
--- Trigger to call update_leader_rating after changes to the ratings table
-CREATE TRIGGER "rating_changed_trigger"
-AFTER INSERT OR UPDATE OR DELETE ON "public"."ratings"
-FOR EACH ROW EXECUTE PROCEDURE "public"."update_leader_rating"();
+-- Trigger to update leader ratings
+CREATE OR REPLACE TRIGGER "rating_changed_trigger"
+  AFTER INSERT OR UPDATE OR DELETE ON "public"."ratings"
+  FOR EACH ROW EXECUTE FUNCTION "public"."update_leader_rating"();
 
-
--- Function to update poll response counts
-CREATE OR REPLACE FUNCTION "public"."update_poll_counts"()
-RETURNS "trigger"
-LANGUAGE "plpgsql"
+-- Function to handle new rating with upsert logic
+CREATE OR REPLACE FUNCTION "public"."handle_new_rating"(
+  p_leader_id uuid,
+  p_user_id uuid,
+  p_rating int,
+  p_comment text DEFAULT NULL,
+  p_social_behaviour text DEFAULT NULL
+)
+RETURNS void
+LANGUAGE plpgsql
+SECURITY DEFINER
 AS $$
 BEGIN
-  -- Increment option count
+  INSERT INTO public.ratings ("leaderId", "userId", rating, comment, "socialBehaviour", "updatedAt")
+  VALUES (p_leader_id, p_user_id, p_rating, p_comment, p_social_behaviour::social_behaviour_enum, now())
+  ON CONFLICT ("userId", "leaderId") 
+  DO UPDATE SET
+    rating = EXCLUDED.rating,
+    comment = EXCLUDED.comment,
+    "socialBehaviour" = EXCLUDED."socialBehaviour",
+    "updatedAt" = now();
+END;
+$$;
+
+-- Function to handle rating deletion
+CREATE OR REPLACE FUNCTION "public"."handle_rating_deletion"(
+  p_user_id uuid,
+  p_leader_id uuid
+)
+RETURNS void
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+BEGIN
+  DELETE FROM public.ratings
+  WHERE "userId" = p_user_id AND "leaderId" = p_leader_id;
+END;
+$$;
+
+-- Function to get reviews for a leader
+CREATE OR REPLACE FUNCTION "public"."get_reviews_for_leader"(p_leader_id uuid)
+RETURNS TABLE(
+    "userName" text,
+    rating int,
+    comment text,
+    "updatedAt" timestamptz,
+    "socialBehaviour" text
+)
+LANGUAGE sql
+STABLE
+AS $$
+  SELECT
+    COALESCE(u.name, 'Anonymous') as "userName",
+    r.rating,
+    r.comment,
+    r."updatedAt",
+    r."socialBehaviour"::text
+  FROM public.ratings r
+  LEFT JOIN public.users u ON r."userId" = u.id
+  WHERE r."leaderId" = p_leader_id
+  ORDER BY r."updatedAt" DESC;
+$$;
+
+-- Function to get user activities
+CREATE OR REPLACE FUNCTION "public"."get_user_activities"(p_user_id uuid)
+RETURNS TABLE (
+    "leaderId" uuid,
+    "leaderName" text,
+    "leaderPhotoUrl" text,
+    rating int,
+    comment text,
+    "updatedAt" timestamptz,
+    leader jsonb,
+    "socialBehaviour" text,
+    "userName" text
+)
+LANGUAGE sql
+STABLE
+AS $$
+  SELECT
+    r."leaderId",
+    l.name as "leaderName",
+    l."photoUrl" as "leaderPhotoUrl",
+    r.rating,
+    r.comment,
+    r."updatedAt",
+    row_to_json(l) as leader,
+    r."socialBehaviour"::text,
+    COALESCE(u.name, 'Anonymous') as "userName"
+  FROM public.ratings r
+  JOIN public.leaders l ON r."leaderId" = l.id
+  LEFT JOIN public.users u ON r."userId" = u.id
+  WHERE r."userId" = p_user_id
+  ORDER BY r."updatedAt" DESC;
+$$;
+
+-- Function to get all activities (for admin)
+CREATE OR REPLACE FUNCTION "public"."get_all_activities"()
+RETURNS TABLE (
+    "leaderId" uuid,
+    "leaderName" text,
+    "leaderPhotoUrl" text,
+    rating int,
+    comment text,
+    "updatedAt" timestamptz,
+    leader jsonb,
+    "socialBehaviour" text,
+    "userName" text
+)
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+AS $$
+  SELECT
+    r."leaderId",
+    l.name as "leaderName",
+    l."photoUrl" as "leaderPhotoUrl",
+    r.rating,
+    r.comment,
+    r."updatedAt",
+    row_to_json(l) as leader,
+    r."socialBehaviour"::text,
+    COALESCE(u.name, 'Anonymous') as "userName"
+  FROM public.ratings r
+  JOIN public.leaders l ON r."leaderId" = l.id
+  LEFT JOIN public.users u ON r."userId" = u.id
+  ORDER BY r."updatedAt" DESC;
+$$;
+
+-- Function to update poll counts
+CREATE OR REPLACE FUNCTION "public"."update_poll_counts"()
+RETURNS trigger
+LANGUAGE plpgsql
+AS $$
+BEGIN
   IF (TG_OP = 'INSERT') THEN
     UPDATE public.poll_options
     SET vote_count = vote_count + 1
     WHERE id = NEW.selected_option_id;
-
     RETURN NEW;
   END IF;
-
   RETURN NULL;
 END;
 $$;
 
--- Function to update the main poll response count after a new response is added
+-- Function to update poll response count
 CREATE OR REPLACE FUNCTION "public"."update_poll_response_count"()
-RETURNS "trigger"
-LANGUAGE "plpgsql"
+RETURNS trigger
+LANGUAGE plpgsql
 AS $$
 BEGIN
   IF (TG_OP = 'INSERT') THEN
@@ -315,108 +530,147 @@ BEGIN
     SET response_count = response_count - 1
     WHERE id = OLD.poll_id;
   END IF;
-  
   RETURN NULL;
 END;
 $$;
 
--- Trigger to call update_poll_counts when a new poll answer is inserted
-CREATE TRIGGER "poll_answer_added"
-AFTER INSERT ON "public"."poll_answers"
-FOR EACH ROW EXECUTE PROCEDURE "public"."update_poll_counts"();
+-- Triggers for poll management
+CREATE OR REPLACE TRIGGER "poll_answer_added"
+  AFTER INSERT ON "public"."poll_answers"
+  FOR EACH ROW EXECUTE FUNCTION "public"."update_poll_counts"();
 
--- Trigger for the main poll response counter
-CREATE TRIGGER "poll_response_added_or_deleted"
-AFTER INSERT OR DELETE ON "public"."poll_responses"
-FOR EACH ROW EXECUTE PROCEDURE "public"."update_poll_response_count"();
-
+CREATE OR REPLACE TRIGGER "poll_response_added_or_deleted"
+  AFTER INSERT OR DELETE ON "public"."poll_responses"
+  FOR EACH ROW EXECUTE FUNCTION "public"."update_poll_response_count"();
 
 -- =============================================
 -- 4. Row Level Security (RLS) Policies
 -- =============================================
 
--- Profiles Policies
-CREATE POLICY "Users can view their own profile." ON "public"."profiles"
-FOR SELECT USING (auth.uid() = id);
+-- Users table policies
+CREATE POLICY "Users can view any user profile" ON "public"."users"
+FOR SELECT USING (true);
 
-CREATE POLICY "Users can update their own profile." ON "public"."profiles"
+CREATE POLICY "Users can update their own profile" ON "public"."users"
 FOR UPDATE USING (auth.uid() = id) WITH CHECK (auth.uid() = id);
 
--- Leaders Policies
-CREATE POLICY "Public can view approved leaders." ON "public"."leaders"
-FOR SELECT USING (status = 'approved'::leader_status_enum);
+CREATE POLICY "Admins can manage all users" ON "public"."users"
+FOR ALL USING (is_admin());
 
-CREATE POLICY "Authenticated users can create leaders." ON "public"."leaders"
+-- Profiles table policies
+CREATE POLICY "Users can view their own profile" ON "public"."profiles"
+FOR SELECT USING (auth.uid() = id);
+
+CREATE POLICY "Users can update their own profile" ON "public"."profiles"
+FOR UPDATE USING (auth.uid() = id) WITH CHECK (auth.uid() = id);
+
+CREATE POLICY "Admins can manage all profiles" ON "public"."profiles"
+FOR ALL USING (is_admin());
+
+-- Leaders table policies
+CREATE POLICY "Public can view approved leaders" ON "public"."leaders"
+FOR SELECT USING (status = 'approved'::leader_status_enum OR is_admin());
+
+CREATE POLICY "Authenticated users can create leaders" ON "public"."leaders"
 FOR INSERT WITH CHECK (auth.role() = 'authenticated');
 
-CREATE POLICY "Submitter or admin can update leaders." ON "public"."leaders"
-FOR UPDATE USING (auth.uid() = added_by_user_id OR is_admin()) WITH CHECK (auth.uid() = added_by_user_id OR is_admin());
+CREATE POLICY "Users can view their own submitted leaders" ON "public"."leaders"
+FOR SELECT USING (auth.uid() = "addedByUserId");
 
-CREATE POLICY "Admins can delete leaders." ON "public"."leaders"
-FOR DELETE USING (is_admin());
+CREATE POLICY "Users can update their own submitted leaders" ON "public"."leaders"
+FOR UPDATE USING (auth.uid() = "addedByUserId") WITH CHECK (auth.uid() = "addedByUserId");
 
--- Ratings Policies
-CREATE POLICY "Public can view all ratings." ON "public"."ratings"
+CREATE POLICY "Admins can manage all leaders" ON "public"."leaders"
+FOR ALL USING (is_admin());
+
+-- Ratings table policies
+CREATE POLICY "Public can view all ratings" ON "public"."ratings"
 FOR SELECT USING (true);
 
-CREATE POLICY "Users can manage their own ratings." ON "public"."ratings"
-FOR ALL USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
+CREATE POLICY "Users can manage their own ratings" ON "public"."ratings"
+FOR ALL USING (auth.uid() = "userId") WITH CHECK (auth.uid() = "userId");
 
--- Site Settings Policies
-CREATE POLICY "Public can read site settings." ON "public"."site_settings"
+CREATE POLICY "Admins can manage all ratings" ON "public"."ratings"
+FOR ALL USING (is_admin());
+
+-- Site Settings policies
+CREATE POLICY "Public can read site settings" ON "public"."site_settings"
 FOR SELECT USING (true);
 
-CREATE POLICY "Admins can update site settings." ON "public"."site_settings"
-FOR UPDATE USING (is_admin());
+CREATE POLICY "Admins can manage site settings" ON "public"."site_settings"
+FOR ALL USING (is_admin());
 
--- Admin Messages Policies
-CREATE POLICY "Users can view their own admin messages." ON "public"."admin_messages"
+-- Notifications policies
+CREATE POLICY "Public can view active notifications" ON "public"."notifications"
+FOR SELECT USING ("isActive" = true OR is_admin());
+
+CREATE POLICY "Admins can manage notifications" ON "public"."notifications"
+FOR ALL USING (is_admin());
+
+-- Admin Messages policies
+CREATE POLICY "Users can view their own messages" ON "public"."admin_messages"
 FOR SELECT USING (auth.uid() = user_id);
 
-CREATE POLICY "Admins can manage all admin messages." ON "public"."admin_messages"
+CREATE POLICY "Users can mark their own messages as read" ON "public"."admin_messages"
+FOR UPDATE USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "Admins can manage all messages" ON "public"."admin_messages"
 FOR ALL USING (is_admin());
 
--- Support Tickets Policies
-CREATE POLICY "Users can create support tickets." ON "public"."support_tickets"
+-- Support Tickets policies
+CREATE POLICY "Users can create support tickets" ON "public"."support_tickets"
 FOR INSERT WITH CHECK (auth.uid() = user_id OR auth.role() = 'anon');
 
-CREATE POLICY "Admins can manage all support tickets." ON "public"."support_tickets"
+CREATE POLICY "Users can view their own tickets" ON "public"."support_tickets"
+FOR SELECT USING (auth.uid() = user_id);
+
+CREATE POLICY "Admins can manage all tickets" ON "public"."support_tickets"
 FOR ALL USING (is_admin());
 
--- Polls Policies
-CREATE POLICY "Public can view active polls." ON "public"."polls"
-FOR SELECT USING (is_active = true AND (active_until IS NULL OR active_until > now()));
+-- Poll policies
+CREATE POLICY "Public can view active polls" ON "public"."polls"
+FOR SELECT USING (is_active = true AND (active_until IS NULL OR active_until > now()) OR is_admin());
 
-CREATE POLICY "Admins can manage polls." ON "public"."polls"
+CREATE POLICY "Admins can manage polls" ON "public"."polls"
 FOR ALL USING (is_admin());
 
-CREATE POLICY "Public can view poll questions and options." ON "public"."poll_questions"
+CREATE POLICY "Public can view poll questions" ON "public"."poll_questions"
 FOR SELECT USING (true);
-CREATE POLICY "Admins can manage poll questions." ON "public"."poll_questions"
-FOR ALL USING (is_admin());
-CREATE POLICY "Admins can manage poll options." ON "public"."poll_options"
+
+CREATE POLICY "Admins can manage poll questions" ON "public"."poll_questions"
 FOR ALL USING (is_admin());
 
-CREATE POLICY "Authenticated users can create poll responses." ON "public"."poll_responses"
+CREATE POLICY "Public can view poll options" ON "public"."poll_options"
+FOR SELECT USING (true);
+
+CREATE POLICY "Admins can manage poll options" ON "public"."poll_options"
+FOR ALL USING (is_admin());
+
+CREATE POLICY "Authenticated users can create poll responses" ON "public"."poll_responses"
 FOR INSERT WITH CHECK (auth.uid() = user_id);
-CREATE POLICY "Admins can see poll responses." ON "public"."poll_responses"
+
+CREATE POLICY "Users can view their own responses" ON "public"."poll_responses"
+FOR SELECT USING (auth.uid() = user_id);
+
+CREATE POLICY "Admins can view all responses" ON "public"."poll_responses"
 FOR SELECT USING (is_admin());
 
-CREATE POLICY "Users can create their own answers." ON "public"."poll_answers"
+CREATE POLICY "Users can create their own poll answers" ON "public"."poll_answers"
 FOR INSERT WITH CHECK (
     EXISTS (
         SELECT 1 FROM poll_responses
         WHERE id = response_id AND user_id = auth.uid()
     )
 );
-CREATE POLICY "Admins can see poll answers." ON "public"."poll_answers"
+
+CREATE POLICY "Admins can view all poll answers" ON "public"."poll_answers"
 FOR SELECT USING (is_admin());
 
 -- =============================================
--- 5. Seeding Initial Data (Optional)
+-- 5. Initial Data Seeding
 -- =============================================
 
--- Seed site settings with default values
+-- Seed site settings
 INSERT INTO "public"."site_settings" (key, value) VALUES
 ('maintenance_active', 'false'),
 ('maintenance_message', 'The site is currently down for maintenance. We will be back shortly.'),
@@ -428,8 +682,23 @@ INSERT INTO "public"."site_settings" (key, value) VALUES
 ('contact_facebook', NULL)
 ON CONFLICT (key) DO NOTHING;
 
--- You can add initial leaders or users here if needed.
--- Example:
--- INSERT INTO "public"."leaders" (name, party_name, gender, age, ...) VALUES (...);
+-- Create a sample notification
+INSERT INTO "public"."notifications" (title, message, type, "isActive") VALUES
+('Welcome to PolitiRate', 'Rate and review your political leaders to make informed decisions!', 'info', true)
+ON CONFLICT DO NOTHING;
 
--- End of script
+-- =============================================
+-- 6. Additional Indexes for Performance
+-- =============================================
+
+-- Indexes for better query performance
+CREATE INDEX IF NOT EXISTS "idx_leaders_status" ON "public"."leaders" ("status");
+CREATE INDEX IF NOT EXISTS "idx_leaders_election_type" ON "public"."leaders" ("electionType");
+CREATE INDEX IF NOT EXISTS "idx_leaders_location" ON "public"."leaders" USING GIN ("location");
+CREATE INDEX IF NOT EXISTS "idx_ratings_leader_id" ON "public"."ratings" ("leaderId");
+CREATE INDEX IF NOT EXISTS "idx_ratings_user_id" ON "public"."ratings" ("userId");
+CREATE INDEX IF NOT EXISTS "idx_ratings_updated_at" ON "public"."ratings" ("updatedAt");
+CREATE INDEX IF NOT EXISTS "idx_notifications_active" ON "public"."notifications" ("isActive");
+CREATE INDEX IF NOT EXISTS "idx_admin_messages_user_read" ON "public"."admin_messages" (user_id, "isRead");
+
+-- End of schema

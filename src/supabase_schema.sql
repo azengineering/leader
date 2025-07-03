@@ -4,7 +4,31 @@
 -- =============================================
 
 -- =============================================
--- 1. Create Custom Types & Extensions
+-- 1. Drop existing tables and recreate (if needed)
+-- =============================================
+
+-- First, let's make sure we have clean slate
+DROP TABLE IF EXISTS public.contact_messages CASCADE;
+DROP TABLE IF EXISTS public.support_tickets CASCADE;
+DROP TABLE IF EXISTS public.poll_responses CASCADE;
+DROP TABLE IF EXISTS public.poll_options CASCADE;
+DROP TABLE IF EXISTS public.poll_questions CASCADE;
+DROP TABLE IF EXISTS public.polls CASCADE;
+DROP TABLE IF EXISTS public.notifications CASCADE;
+DROP TABLE IF EXISTS public.site_settings CASCADE;
+DROP TABLE IF EXISTS public.admin_messages CASCADE;
+DROP TABLE IF EXISTS public.ratings CASCADE;
+DROP TABLE IF EXISTS public.leaders CASCADE;
+DROP TABLE IF EXISTS public.users CASCADE;
+
+-- Drop custom types if they exist
+DROP TYPE IF EXISTS public.ticket_status CASCADE;
+DROP TYPE IF EXISTS public.poll_question_type CASCADE;
+DROP TYPE IF EXISTS public.leader_status CASCADE;
+DROP TYPE IF EXISTS public.user_role CASCADE;
+
+-- =============================================
+-- 2. Create Custom Types & Extensions
 -- =============================================
 
 -- Enable necessary extensions
@@ -12,39 +36,23 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 
 -- Create enum for leader status
-DO $$ BEGIN
-    CREATE TYPE public.leader_status AS ENUM ('pending', 'approved', 'rejected');
-EXCEPTION
-    WHEN duplicate_object THEN null;
-END $$;
+CREATE TYPE public.leader_status AS ENUM ('pending', 'approved', 'rejected');
 
 -- Create enum for user roles
-DO $$ BEGIN
-    CREATE TYPE public.user_role AS ENUM ('user', 'admin', 'super_admin');
-EXCEPTION
-    WHEN duplicate_object THEN null;
-END $$;
+CREATE TYPE public.user_role AS ENUM ('user', 'admin', 'super_admin');
 
 -- Create enum for ticket status
-DO $$ BEGIN
-    CREATE TYPE public.ticket_status AS ENUM ('open', 'in-progress', 'resolved', 'closed');
-EXCEPTION
-    WHEN duplicate_object THEN null;
-END $$;
+CREATE TYPE public.ticket_status AS ENUM ('open', 'in-progress', 'resolved', 'closed');
 
 -- Create enum for poll question types
-DO $$ BEGIN
-    CREATE TYPE public.poll_question_type AS ENUM ('yes_no', 'multiple_choice');
-EXCEPTION
-    WHEN duplicate_object THEN null;
-END $$;
+CREATE TYPE public.poll_question_type AS ENUM ('yes_no', 'multiple_choice');
 
 -- =============================================
--- 2. Core Tables
+-- 3. Core Tables
 -- =============================================
 
 -- Users table (extends auth.users)
-CREATE TABLE IF NOT EXISTS public.users (
+CREATE TABLE public.users (
     id uuid NOT NULL PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
     email text NOT NULL,
     name text DEFAULT '',
@@ -64,7 +72,7 @@ CREATE TABLE IF NOT EXISTS public.users (
 );
 
 -- Leaders table
-CREATE TABLE IF NOT EXISTS public.leaders (
+CREATE TABLE public.leaders (
     id uuid NOT NULL PRIMARY KEY DEFAULT gen_random_uuid(),
     name text NOT NULL,
     "partyName" text NOT NULL,
@@ -88,7 +96,7 @@ CREATE TABLE IF NOT EXISTS public.leaders (
 );
 
 -- Ratings table
-CREATE TABLE IF NOT EXISTS public.ratings (
+CREATE TABLE public.ratings (
     "leaderId" uuid NOT NULL REFERENCES public.leaders(id) ON DELETE CASCADE,
     "userId" uuid NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
     rating integer NOT NULL CHECK (rating >= 1 AND rating <= 5),
@@ -100,7 +108,7 @@ CREATE TABLE IF NOT EXISTS public.ratings (
 );
 
 -- Admin messages table
-CREATE TABLE IF NOT EXISTS public.admin_messages (
+CREATE TABLE public.admin_messages (
     id uuid NOT NULL PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id uuid NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
     message text NOT NULL,
@@ -108,8 +116,8 @@ CREATE TABLE IF NOT EXISTS public.admin_messages (
     "createdAt" timestamptz NOT NULL DEFAULT now()
 );
 
--- Site settings table
-CREATE TABLE IF NOT EXISTS public.site_settings (
+-- Site settings table (fixed ID type to text)
+CREATE TABLE public.site_settings (
     id text NOT NULL PRIMARY KEY DEFAULT 'main',
     maintenance_active boolean NOT NULL DEFAULT false,
     maintenance_start timestamptz,
@@ -124,8 +132,8 @@ CREATE TABLE IF NOT EXISTS public.site_settings (
     "updatedAt" timestamptz NOT NULL DEFAULT now()
 );
 
--- Notifications table
-CREATE TABLE IF NOT EXISTS public.notifications (
+-- Notifications table (fixed column name to endTime)
+CREATE TABLE public.notifications (
     id uuid NOT NULL PRIMARY KEY DEFAULT gen_random_uuid(),
     message text NOT NULL,
     "startTime" timestamptz NOT NULL DEFAULT now(),
@@ -136,7 +144,7 @@ CREATE TABLE IF NOT EXISTS public.notifications (
 );
 
 -- Polls table
-CREATE TABLE IF NOT EXISTS public.polls (
+CREATE TABLE public.polls (
     id uuid NOT NULL PRIMARY KEY DEFAULT gen_random_uuid(),
     title text NOT NULL,
     description text,
@@ -146,7 +154,7 @@ CREATE TABLE IF NOT EXISTS public.polls (
 );
 
 -- Poll questions table
-CREATE TABLE IF NOT EXISTS public.poll_questions (
+CREATE TABLE public.poll_questions (
     id uuid NOT NULL PRIMARY KEY DEFAULT gen_random_uuid(),
     poll_id uuid NOT NULL REFERENCES public.polls(id) ON DELETE CASCADE,
     question_text text NOT NULL,
@@ -155,7 +163,7 @@ CREATE TABLE IF NOT EXISTS public.poll_questions (
 );
 
 -- Poll options table
-CREATE TABLE IF NOT EXISTS public.poll_options (
+CREATE TABLE public.poll_options (
     id uuid NOT NULL PRIMARY KEY DEFAULT gen_random_uuid(),
     question_id uuid NOT NULL REFERENCES public.poll_questions(id) ON DELETE CASCADE,
     option_text text NOT NULL,
@@ -164,7 +172,7 @@ CREATE TABLE IF NOT EXISTS public.poll_options (
 );
 
 -- Poll responses table
-CREATE TABLE IF NOT EXISTS public.poll_responses (
+CREATE TABLE public.poll_responses (
     id uuid NOT NULL PRIMARY KEY DEFAULT gen_random_uuid(),
     poll_id uuid NOT NULL REFERENCES public.polls(id) ON DELETE CASCADE,
     user_id uuid NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
@@ -174,7 +182,7 @@ CREATE TABLE IF NOT EXISTS public.poll_responses (
 );
 
 -- Support tickets table
-CREATE TABLE IF NOT EXISTS public.support_tickets (
+CREATE TABLE public.support_tickets (
     id uuid NOT NULL PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id uuid REFERENCES public.users(id) ON DELETE SET NULL,
     user_name text NOT NULL,
@@ -189,7 +197,7 @@ CREATE TABLE IF NOT EXISTS public.support_tickets (
 );
 
 -- Contact messages table
-CREATE TABLE IF NOT EXISTS public.contact_messages (
+CREATE TABLE public.contact_messages (
     id uuid NOT NULL PRIMARY KEY DEFAULT gen_random_uuid(),
     name text NOT NULL,
     email text NOT NULL,
@@ -200,40 +208,40 @@ CREATE TABLE IF NOT EXISTS public.contact_messages (
 );
 
 -- =============================================
--- 3. Indexes for Performance
+-- 4. Indexes for Performance
 -- =============================================
 
-CREATE INDEX IF NOT EXISTS idx_users_email ON public.users(email);
-CREATE INDEX IF NOT EXISTS idx_users_role ON public.users(role);
-CREATE INDEX IF NOT EXISTS idx_users_blocked ON public.users("isBlocked");
-CREATE INDEX IF NOT EXISTS idx_users_state ON public.users(state);
+CREATE INDEX idx_users_email ON public.users(email);
+CREATE INDEX idx_users_role ON public.users(role);
+CREATE INDEX idx_users_blocked ON public.users("isBlocked");
+CREATE INDEX idx_users_state ON public.users(state);
 
-CREATE INDEX IF NOT EXISTS idx_leaders_status ON public.leaders(status);
-CREATE INDEX IF NOT EXISTS idx_leaders_constituency ON public.leaders(constituency);
-CREATE INDEX IF NOT EXISTS idx_leaders_election_type ON public.leaders("electionType");
-CREATE INDEX IF NOT EXISTS idx_leaders_added_by ON public.leaders("addedByUserId");
-CREATE INDEX IF NOT EXISTS idx_leaders_rating ON public.leaders(rating);
-CREATE INDEX IF NOT EXISTS idx_leaders_created_at ON public.leaders("createdAt");
+CREATE INDEX idx_leaders_status ON public.leaders(status);
+CREATE INDEX idx_leaders_constituency ON public.leaders(constituency);
+CREATE INDEX idx_leaders_election_type ON public.leaders("electionType");
+CREATE INDEX idx_leaders_added_by ON public.leaders("addedByUserId");
+CREATE INDEX idx_leaders_rating ON public.leaders(rating);
+CREATE INDEX idx_leaders_created_at ON public.leaders("createdAt");
 
-CREATE INDEX IF NOT EXISTS idx_ratings_leader_id ON public.ratings("leaderId");
-CREATE INDEX IF NOT EXISTS idx_ratings_user_id ON public.ratings("userId");
-CREATE INDEX IF NOT EXISTS idx_ratings_created_at ON public.ratings("createdAt");
+CREATE INDEX idx_ratings_leader_id ON public.ratings("leaderId");
+CREATE INDEX idx_ratings_user_id ON public.ratings("userId");
+CREATE INDEX idx_ratings_created_at ON public.ratings("createdAt");
 
-CREATE INDEX IF NOT EXISTS idx_admin_messages_user_read ON public.admin_messages(user_id, is_read);
-CREATE INDEX IF NOT EXISTS idx_notifications_active ON public.notifications("isActive");
-CREATE INDEX IF NOT EXISTS idx_notifications_time ON public.notifications("startTime", "endTime");
+CREATE INDEX idx_admin_messages_user_read ON public.admin_messages(user_id, is_read);
+CREATE INDEX idx_notifications_active ON public.notifications("isActive");
+CREATE INDEX idx_notifications_time ON public.notifications("startTime", "endTime");
 
-CREATE INDEX IF NOT EXISTS idx_polls_active ON public.polls(is_active);
-CREATE INDEX IF NOT EXISTS idx_poll_questions_poll_id ON public.poll_questions(poll_id);
-CREATE INDEX IF NOT EXISTS idx_poll_options_question_id ON public.poll_options(question_id);
-CREATE INDEX IF NOT EXISTS idx_poll_responses_poll_user ON public.poll_responses(poll_id, user_id);
+CREATE INDEX idx_polls_active ON public.polls(is_active);
+CREATE INDEX idx_poll_questions_poll_id ON public.poll_questions(poll_id);
+CREATE INDEX idx_poll_options_question_id ON public.poll_options(question_id);
+CREATE INDEX idx_poll_responses_poll_user ON public.poll_responses(poll_id, user_id);
 
-CREATE INDEX IF NOT EXISTS idx_support_tickets_status ON public.support_tickets(status);
-CREATE INDEX IF NOT EXISTS idx_support_tickets_user_id ON public.support_tickets(user_id);
-CREATE INDEX IF NOT EXISTS idx_contact_messages_read ON public.contact_messages(is_read);
+CREATE INDEX idx_support_tickets_status ON public.support_tickets(status);
+CREATE INDEX idx_support_tickets_user_id ON public.support_tickets(user_id);
+CREATE INDEX idx_contact_messages_read ON public.contact_messages(is_read);
 
 -- =============================================
--- 4. Functions and Triggers
+-- 5. Functions and Triggers
 -- =============================================
 
 -- Function to handle new user signup
@@ -556,7 +564,7 @@ CREATE TRIGGER on_rating_change
     FOR EACH ROW EXECUTE FUNCTION public.update_leader_rating();
 
 -- =============================================
--- 5. Row Level Security Policies
+-- 6. Row Level Security Policies
 -- =============================================
 
 -- Enable RLS on all tables
@@ -574,130 +582,91 @@ ALTER TABLE public.support_tickets ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.contact_messages ENABLE ROW LEVEL SECURITY;
 
 -- Users policies
-DROP POLICY IF EXISTS "Users can view all profiles" ON public.users;
 CREATE POLICY "Users can view all profiles" ON public.users FOR SELECT USING (true);
-
-DROP POLICY IF EXISTS "Users can update own profile" ON public.users;
 CREATE POLICY "Users can update own profile" ON public.users FOR UPDATE USING (auth.uid() = id);
-
-DROP POLICY IF EXISTS "Admins can view all users" ON public.users;
 CREATE POLICY "Admins can view all users" ON public.users FOR SELECT USING (
     EXISTS (SELECT 1 FROM public.users WHERE id = auth.uid() AND role IN ('admin', 'super_admin'))
 );
-
-DROP POLICY IF EXISTS "Admins can update any user" ON public.users;
 CREATE POLICY "Admins can update any user" ON public.users FOR UPDATE USING (
     EXISTS (SELECT 1 FROM public.users WHERE id = auth.uid() AND role IN ('admin', 'super_admin'))
 );
 
 -- Leaders policies
-DROP POLICY IF EXISTS "Anyone can view approved leaders" ON public.leaders;
 CREATE POLICY "Anyone can view approved leaders" ON public.leaders FOR SELECT USING (
     status = 'approved' OR 
     "addedByUserId" = auth.uid() OR
     EXISTS (SELECT 1 FROM public.users WHERE id = auth.uid() AND role IN ('admin', 'super_admin'))
 );
-
-DROP POLICY IF EXISTS "Authenticated users can add leaders" ON public.leaders;
 CREATE POLICY "Authenticated users can add leaders" ON public.leaders FOR INSERT WITH CHECK (
     auth.uid() IS NOT NULL
 );
-
-DROP POLICY IF EXISTS "Users can update own pending leaders" ON public.leaders;
 CREATE POLICY "Users can update own pending leaders" ON public.leaders FOR UPDATE USING (
     ("addedByUserId" = auth.uid() AND status = 'pending') OR
     EXISTS (SELECT 1 FROM public.users WHERE id = auth.uid() AND role IN ('admin', 'super_admin'))
 );
-
-DROP POLICY IF EXISTS "Admins can delete leaders" ON public.leaders;
 CREATE POLICY "Admins can delete leaders" ON public.leaders FOR DELETE USING (
     EXISTS (SELECT 1 FROM public.users WHERE id = auth.uid() AND role IN ('admin', 'super_admin'))
 );
 
 -- Ratings policies
-DROP POLICY IF EXISTS "Anyone can view ratings" ON public.ratings;
 CREATE POLICY "Anyone can view ratings" ON public.ratings FOR SELECT USING (true);
-
-DROP POLICY IF EXISTS "Authenticated users can add ratings" ON public.ratings;
 CREATE POLICY "Authenticated users can add ratings" ON public.ratings FOR INSERT WITH CHECK (
     auth.uid() = "userId"
 );
-
-DROP POLICY IF EXISTS "Users can update own ratings" ON public.ratings;
 CREATE POLICY "Users can update own ratings" ON public.ratings FOR UPDATE USING (
     auth.uid() = "userId"
 );
-
-DROP POLICY IF EXISTS "Users can delete own ratings" ON public.ratings;
 CREATE POLICY "Users can delete own ratings" ON public.ratings FOR DELETE USING (
     auth.uid() = "userId" OR
     EXISTS (SELECT 1 FROM public.users WHERE id = auth.uid() AND role IN ('admin', 'super_admin'))
 );
 
 -- Admin messages policies
-DROP POLICY IF EXISTS "Users can view own messages" ON public.admin_messages;
 CREATE POLICY "Users can view own messages" ON public.admin_messages FOR SELECT USING (
     auth.uid() = user_id OR
     EXISTS (SELECT 1 FROM public.users WHERE id = auth.uid() AND role IN ('admin', 'super_admin'))
 );
-
-DROP POLICY IF EXISTS "Users can update own messages" ON public.admin_messages;
 CREATE POLICY "Users can update own messages" ON public.admin_messages FOR UPDATE USING (
     auth.uid() = user_id
 );
-
-DROP POLICY IF EXISTS "Admins can manage messages" ON public.admin_messages;
 CREATE POLICY "Admins can manage messages" ON public.admin_messages FOR ALL USING (
     EXISTS (SELECT 1 FROM public.users WHERE id = auth.uid() AND role IN ('admin', 'super_admin'))
 );
 
 -- Site settings policies
-DROP POLICY IF EXISTS "Anyone can view site settings" ON public.site_settings;
 CREATE POLICY "Anyone can view site settings" ON public.site_settings FOR SELECT USING (true);
-
-DROP POLICY IF EXISTS "Admins can update site settings" ON public.site_settings;
 CREATE POLICY "Admins can update site settings" ON public.site_settings FOR ALL USING (
     EXISTS (SELECT 1 FROM public.users WHERE id = auth.uid() AND role IN ('admin', 'super_admin'))
 );
 
 -- Notifications policies
-DROP POLICY IF EXISTS "Anyone can view active notifications" ON public.notifications;
 CREATE POLICY "Anyone can view active notifications" ON public.notifications FOR SELECT USING (
     "isActive" = true OR
     EXISTS (SELECT 1 FROM public.users WHERE id = auth.uid() AND role IN ('admin', 'super_admin'))
 );
-
-DROP POLICY IF EXISTS "Admins can manage notifications" ON public.notifications;
 CREATE POLICY "Admins can manage notifications" ON public.notifications FOR ALL USING (
     EXISTS (SELECT 1 FROM public.users WHERE id = auth.uid() AND role IN ('admin', 'super_admin'))
 );
 
 -- Polls policies
-DROP POLICY IF EXISTS "Anyone can view active polls" ON public.polls;
 CREATE POLICY "Anyone can view active polls" ON public.polls FOR SELECT USING (
     is_active = true OR
     EXISTS (SELECT 1 FROM public.users WHERE id = auth.uid() AND role IN ('admin', 'super_admin'))
 );
-
-DROP POLICY IF EXISTS "Admins can manage polls" ON public.polls;
 CREATE POLICY "Admins can manage polls" ON public.polls FOR ALL USING (
     EXISTS (SELECT 1 FROM public.users WHERE id = auth.uid() AND role IN ('admin', 'super_admin'))
 );
 
 -- Poll questions policies
-DROP POLICY IF EXISTS "Anyone can view questions of active polls" ON public.poll_questions;
 CREATE POLICY "Anyone can view questions of active polls" ON public.poll_questions FOR SELECT USING (
     EXISTS (SELECT 1 FROM polls p WHERE p.id = poll_id AND p.is_active = true) OR
     EXISTS (SELECT 1 FROM public.users WHERE id = auth.uid() AND role IN ('admin', 'super_admin'))
 );
-
-DROP POLICY IF EXISTS "Admins can manage poll questions" ON public.poll_questions;
 CREATE POLICY "Admins can manage poll questions" ON public.poll_questions FOR ALL USING (
     EXISTS (SELECT 1 FROM public.users WHERE id = auth.uid() AND role IN ('admin', 'super_admin'))
 );
 
 -- Poll options policies
-DROP POLICY IF EXISTS "Anyone can view options of active polls" ON public.poll_options;
 CREATE POLICY "Anyone can view options of active polls" ON public.poll_options FOR SELECT USING (
     EXISTS (
         SELECT 1 FROM poll_questions pq 
@@ -706,52 +675,39 @@ CREATE POLICY "Anyone can view options of active polls" ON public.poll_options F
     ) OR
     EXISTS (SELECT 1 FROM public.users WHERE id = auth.uid() AND role IN ('admin', 'super_admin'))
 );
-
-DROP POLICY IF EXISTS "Admins can manage poll options" ON public.poll_options;
 CREATE POLICY "Admins can manage poll options" ON public.poll_options FOR ALL USING (
     EXISTS (SELECT 1 FROM public.users WHERE id = auth.uid() AND role IN ('admin', 'super_admin'))
 );
 
 -- Poll responses policies
-DROP POLICY IF EXISTS "Authenticated users can submit responses" ON public.poll_responses;
 CREATE POLICY "Authenticated users can submit responses" ON public.poll_responses FOR INSERT WITH CHECK (
     auth.uid() = user_id
 );
-
-DROP POLICY IF EXISTS "Users can view own responses" ON public.poll_responses;
 CREATE POLICY "Users can view own responses" ON public.poll_responses FOR SELECT USING (
     auth.uid() = user_id OR
     EXISTS (SELECT 1 FROM public.users WHERE id = auth.uid() AND role IN ('admin', 'super_admin'))
 );
 
 -- Support tickets policies
-DROP POLICY IF EXISTS "Authenticated users can create tickets" ON public.support_tickets;
 CREATE POLICY "Authenticated users can create tickets" ON public.support_tickets FOR INSERT WITH CHECK (
     auth.uid() IS NOT NULL
 );
-
-DROP POLICY IF EXISTS "Users can view own tickets" ON public.support_tickets;
 CREATE POLICY "Users can view own tickets" ON public.support_tickets FOR SELECT USING (
     auth.uid() = user_id OR
     EXISTS (SELECT 1 FROM public.users WHERE id = auth.uid() AND role IN ('admin', 'super_admin'))
 );
-
-DROP POLICY IF EXISTS "Admins can manage tickets" ON public.support_tickets;
 CREATE POLICY "Admins can manage tickets" ON public.support_tickets FOR ALL USING (
     EXISTS (SELECT 1 FROM public.users WHERE id = auth.uid() AND role IN ('admin', 'super_admin'))
 );
 
 -- Contact messages policies
-DROP POLICY IF EXISTS "Anyone can create contact messages" ON public.contact_messages;
 CREATE POLICY "Anyone can create contact messages" ON public.contact_messages FOR INSERT WITH CHECK (true);
-
-DROP POLICY IF EXISTS "Admins can manage contact messages" ON public.contact_messages;
 CREATE POLICY "Admins can manage contact messages" ON public.contact_messages FOR ALL USING (
     EXISTS (SELECT 1 FROM public.users WHERE id = auth.uid() AND role IN ('admin', 'super_admin'))
 );
 
 -- =============================================
--- 6. Initial Data and Setup
+-- 7. Initial Data and Setup
 -- =============================================
 
 -- Insert default site settings

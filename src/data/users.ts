@@ -1,4 +1,3 @@
-
 'use server';
 
 import { supabase } from '@/lib/db';
@@ -49,7 +48,7 @@ export async function updateUserProfile(userId: string, profileData: Partial<Omi
         .eq('id', userId)
         .select()
         .single();
-        
+
     if (error) {
         console.error("Error updating user profile:", error);
         return null;
@@ -70,7 +69,7 @@ export async function getUserCount(filters?: { startDate?: string, endDate?: str
         const searchTerm = `%${filters.constituency}%`;
         query = query.or(`mpConstituency.ilike.${searchTerm},mlaConstituency.ilike.${searchTerm},panchayat.ilike.${searchTerm}`);
     }
-    
+
     const { count, error } = await query;
     if (error) {
         console.error("Error getting user count:", error);
@@ -86,7 +85,7 @@ export async function blockUser(userId: string, reason: string, blockedUntil: st
         .from('users')
         .update({ isBlocked: true, blockReason: reason, blockedUntil: blockedUntil })
         .eq('id', userId);
-        
+
     if (error) {
       console.error("Error blocking user:", error);
       throw error;
@@ -103,6 +102,64 @@ export async function unblockUser(userId: string): Promise<void> {
       console.error("Error unblocking user:", error);
       throw error;
     }
+}
+
+export interface UserWithCounts extends User {
+  email?: string;
+  leaders: { id: string }[];
+  ratings: { id: string }[];
+  leaderCount: number;
+  ratingCount: number;
+}
+
+export async function getUsersForAdminPanel(filters: {
+  name?: string;
+  email?: string;
+  location?: string;
+  isBlocked?: boolean;
+  ratingCount?: number;
+  leaderCount?: number;
+} = {}): Promise<UserWithCounts[]> {
+  let query = supabaseAdmin
+    .from('profiles')
+    .select(`
+      id,
+      name,
+      location,
+      isBlocked,
+      blockReason,
+      blockedUntil,
+      role,
+      createdAt,
+      updatedAt,
+      leaders!leaders_addedByUserId_fkey(id),
+      ratings!ratings_userId_fkey(id)
+    `);
+
+  const data = await query;
+
+  if (error) {
+    console.error("Error fetching users for admin:", error);
+    return [];
+  }
+
+  // Get emails from auth.users for each user
+  const userIds = (data as any[]).map(user => user.id);
+  const { data: authUsers } = await supabaseAdmin.auth.admin.listUsers();
+
+  const emailMap = new Map();
+  authUsers.users?.forEach(authUser => {
+    emailMap.set(authUser.id, authUser.email);
+  });
+
+  const results = (data as any[]).map(user => ({
+    ...user,
+    email: emailMap.get(user.id),
+    leaderCount: user.leaders?.length || 0,
+    ratingCount: user.ratings?.length || 0,
+  }));
+
+  return results;
 }
 
 export async function getUsers(query?: string): Promise<Partial<User>[]> {
@@ -128,7 +185,7 @@ export async function getUsers(query?: string): Promise<Partial<User>[]> {
     console.error("Error fetching users for admin:", error);
     return [];
   }
-  
+
   return data.map((u: any) => ({
     ...u,
     leaderAddedCount: u.leader_added_count[0]?.count ?? 0,
@@ -141,7 +198,7 @@ export async function addAdminMessage(userId: string, message: string): Promise<
   const { error } = await supabaseAdmin
     .from('admin_messages')
     .insert({ user_id: userId, message: message });
-    
+
   if (error) {
     console.error("Error adding admin message:", error);
     throw error;
@@ -194,7 +251,7 @@ export async function deleteAdminMessage(messageId: string): Promise<void> {
       .from('admin_messages')
       .delete()
       .eq('id', messageId);
-      
+
     if (error) {
       console.error("Error deleting admin message:", error);
       throw error;

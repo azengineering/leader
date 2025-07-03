@@ -1,4 +1,3 @@
-
 'use server';
 
 import { supabase } from '@/lib/db';
@@ -106,7 +105,7 @@ export async function getLeaderById(id: string): Promise<Leader | null> {
         .select('*')
         .eq('id', id)
         .single();
-        
+
     if (error) {
         console.error("Error fetching leader by ID:", error);
         return null;
@@ -132,7 +131,7 @@ export async function updateLeader(leaderId: string, leaderData: Partial<Omit<Le
         payload.status = 'pending';
         payload.adminComment = 'User updated details. Pending re-approval.';
     }
-    
+
     const { data, error } = await db
         .from('leaders')
         .update(payload)
@@ -160,7 +159,7 @@ export async function submitRatingAndComment(leaderId: string, userId: string, n
         console.error('Error submitting rating via RPC:', error);
         throw error;
     }
-    
+
     return getLeaderById(leaderId);
 }
 
@@ -181,7 +180,7 @@ export async function getRatingDistribution(leaderId: string): Promise<RatingDis
         .select('rating, count:id')
         .eq('leaderId', leaderId)
         .groupBy('rating');
-        
+
     if (error) {
         console.error("Error getting rating distribution:", error);
         return [];
@@ -231,7 +230,7 @@ export async function getLeadersAddedByUser(userId: string): Promise<Leader[]> {
     .select('*')
     .eq('addedByUserId', userId)
     .order('name', { ascending: true });
-    
+
   if (error) {
       console.error("Error getting leaders added by user:", error);
       return [];
@@ -258,7 +257,7 @@ export async function getLeaderCount(filters?: { startDate?: string, endDate?: s
 
 export async function getRatingCount(filters?: { startDate?: string, endDate?: string, state?: string, constituency?: string }): Promise<number> {
     let query = supabaseAdmin.from('ratings').select('leaderId, leaders!inner(*)', { count: 'exact', head: true });
-    
+
     if (filters?.startDate) query = query.gte('createdAt', filters.startDate);
     if (filters?.endDate) query = query.lte('createdAt', filters.endDate);
     if (filters?.state) query = query.eq('leaders.location->>state', filters.state);
@@ -273,7 +272,11 @@ export async function getRatingCount(filters?: { startDate?: string, endDate?: s
 export async function getLeadersForAdminPanel(filters: { dateFrom?: string; dateTo?: string; state?: string; constituency?: string; candidateName?: string; }): Promise<Leader[]> {
   let query = supabaseAdmin
     .from('leaders')
-    .select('*, userName:users(name)')
+    .select(`
+          *,
+          userName:profiles!leaders_addedByUserId_fkey(name),
+          ratings!ratings_leaderId_fkey(rating)
+        `)
     .order('createdAt', { ascending: false });
 
   if (filters.dateFrom) query = query.gte('createdAt', filters.dateFrom);
@@ -288,7 +291,7 @@ export async function getLeadersForAdminPanel(filters: { dateFrom?: string; date
     console.error("Error fetching leaders for admin:", error);
     return [];
   }
-  
+
   return data.map(leader => ({
       ...leader,
       userName: (leader.userName as any)?.name ?? 'Admin/System',
@@ -305,7 +308,7 @@ export async function updateLeaderStatus(leaderId: string, status: 'pending' | '
     .from('leaders')
     .update({ status, adminComment })
     .eq('id', leaderId);
-    
+
   if (error) {
       console.error("Error updating leader status:", error);
       throw error;
@@ -317,7 +320,7 @@ export async function deleteLeader(leaderId: string): Promise<void> {
         .from('leaders')
         .delete()
         .eq('id', leaderId);
-        
+
     if (error) {
         console.error("Error deleting leader:", error);
         throw error;

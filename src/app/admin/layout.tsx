@@ -1,4 +1,3 @@
-
 'use client';
 
 import Link from 'next/link';
@@ -8,6 +7,8 @@ import { UserCheck, LogOut, LayoutDashboard, Scale, Users, Menu, Wrench, Bell } 
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { Sheet, SheetContent, SheetTrigger, SheetClose, SheetTitle } from '@/components/ui/sheet';
+import { supabase } from '@/lib/db';
+import { adminLogout } from '@/lib/adminAuth';
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
@@ -17,16 +18,40 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   useEffect(() => {
     setIsClient(true);
   }, []);
-  
+
+  // Check authentication client-side
   useEffect(() => {
-    if (isClient) {
-      const isAdmin = localStorage.getItem('admin_auth') === 'true';
-      if (!isAdmin && pathname !== '/admin/login') {
-        router.replace('/admin/login');
+    const checkAuth = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+
+      if (!session || localStorage.getItem('admin_auth') !== 'true') {
+        router.push('/admin/login');
+        return;
       }
-    }
-  }, [isClient, pathname, router]);
-  
+
+      // Verify admin role
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('role')
+        .eq('id', session.user.id)
+        .single();
+
+      if (!profile || !['admin', 'super_admin'].includes(profile.role)) {
+        await supabase.auth.signOut();
+        localStorage.removeItem('admin_auth');
+        localStorage.removeItem('admin_user_id');
+        router.push('/admin/login');
+      }
+    };
+
+    checkAuth();
+  }, [router]);
+
+  // Don't render admin content if not authenticated
+  if (typeof window !== 'undefined' && localStorage.getItem('admin_auth') !== 'true') {
+      return null;
+  }
+
   const handleLogout = () => {
     localStorage.removeItem('admin_auth');
     router.replace('/admin/login');
@@ -38,7 +63,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     { href: '/admin/leaders', label: 'Leaders', icon: UserCheck },
     { href: '/admin/tools', label: 'Admin Tools', icon: Wrench },
   ];
-  
+
   if (!isClient) {
     return null;
   }
@@ -138,7 +163,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                   Admin Panel
               </div>
             </header>
-            
+
             <main className="flex-1 p-6">{children}</main>
         </div>
       </div>

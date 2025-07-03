@@ -74,7 +74,7 @@ CREATE TABLE "public"."users" (
 );
 ALTER TABLE "public"."users" ENABLE ROW LEVEL SECURITY;
 
--- Profiles table (for additional user profile data)
+-- Profiles table (for additional user profile data and backward compatibility)
 CREATE TABLE "public"."profiles" (
     "id" "uuid" NOT NULL,
     "name" "text",
@@ -115,7 +115,7 @@ CREATE TABLE "public"."leaders" (
     "status" "public"."leader_status_enum" DEFAULT 'pending'::"public"."leader_status_enum" NOT NULL,
     "adminComment" "text",
     CONSTRAINT "leaders_pkey" PRIMARY KEY ("id"),
-    CONSTRAINT "leaders_addedByUserId_fkey" FOREIGN KEY ("addedByUserId") REFERENCES "auth"."users"("id") ON DELETE SET NULL
+    CONSTRAINT "leaders_addedByUserId_fkey" FOREIGN KEY ("addedByUserId") REFERENCES "public"."users"("id") ON DELETE SET NULL
 );
 ALTER TABLE "public"."leaders" ENABLE ROW LEVEL SECURITY;
 
@@ -130,16 +130,19 @@ CREATE TABLE "public"."ratings" (
     "updatedAt" "timestamptz" DEFAULT "now"() NOT NULL,
     CONSTRAINT "ratings_pkey" PRIMARY KEY ("userId", "leaderId"),
     CONSTRAINT "ratings_leaderId_fkey" FOREIGN KEY ("leaderId") REFERENCES "public"."leaders"("id") ON DELETE CASCADE,
-    CONSTRAINT "ratings_userId_fkey" FOREIGN KEY ("userId") REFERENCES "auth"."users"("id") ON DELETE CASCADE,
+    CONSTRAINT "ratings_userId_fkey" FOREIGN KEY ("userId") REFERENCES "public"."users"("id") ON DELETE CASCADE,
     CONSTRAINT "ratings_rating_check" CHECK (("rating" >= 1) AND ("rating" <= 5))
 );
 ALTER TABLE "public"."ratings" ENABLE ROW LEVEL SECURITY;
 
 -- Site Settings table
 CREATE TABLE "public"."site_settings" (
-    "key" "text" NOT NULL,
+    "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
+    "key" "text" NOT NULL UNIQUE,
     "value" "text",
-    CONSTRAINT "site_settings_pkey" PRIMARY KEY ("key")
+    "created_at" "timestamptz" DEFAULT "now"() NOT NULL,
+    "updated_at" "timestamptz" DEFAULT "now"() NOT NULL,
+    CONSTRAINT "site_settings_pkey" PRIMARY KEY ("id")
 );
 ALTER TABLE "public"."site_settings" ENABLE ROW LEVEL SECURITY;
 
@@ -151,6 +154,7 @@ CREATE TABLE "public"."notifications" (
     "type" "public"."notification_type_enum" DEFAULT 'info'::"public"."notification_type_enum" NOT NULL,
     "isActive" "bool" DEFAULT true NOT NULL,
     "createdAt" "timestamptz" DEFAULT "now"() NOT NULL,
+    "startTime" "timestamptz" DEFAULT "now"() NOT NULL,
     "expiresAt" "timestamptz",
     CONSTRAINT "notifications_pkey" PRIMARY KEY ("id")
 );
@@ -164,7 +168,7 @@ CREATE TABLE "public"."admin_messages" (
     "isRead" "bool" DEFAULT false NOT NULL,
     "createdAt" "timestamptz" DEFAULT "now"() NOT NULL,
     CONSTRAINT "admin_messages_pkey" PRIMARY KEY ("id"),
-    CONSTRAINT "admin_messages_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "auth"."users"("id") ON DELETE CASCADE
+    CONSTRAINT "admin_messages_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE CASCADE
 );
 ALTER TABLE "public"."admin_messages" ENABLE ROW LEVEL SECURITY;
 
@@ -182,7 +186,7 @@ CREATE TABLE "public"."support_tickets" (
     "resolved_at" "timestamptz",
     "admin_notes" "text",
     CONSTRAINT "support_tickets_pkey" PRIMARY KEY ("id"),
-    CONSTRAINT "support_tickets_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "auth"."users"("id") ON DELETE SET NULL
+    CONSTRAINT "support_tickets_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE SET NULL
 );
 ALTER TABLE "public"."support_tickets" ENABLE ROW LEVEL SECURITY;
 
@@ -229,7 +233,7 @@ CREATE TABLE "public"."poll_responses" (
     CONSTRAINT "poll_responses_pkey" PRIMARY KEY ("id"),
     CONSTRAINT "poll_responses_poll_id_user_id_key" UNIQUE ("poll_id", "user_id"),
     CONSTRAINT "poll_responses_poll_id_fkey" FOREIGN KEY ("poll_id") REFERENCES "public"."polls"("id") ON DELETE CASCADE,
-    CONSTRAINT "poll_responses_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "auth"."users"("id") ON DELETE CASCADE
+    CONSTRAINT "poll_responses_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE CASCADE
 );
 ALTER TABLE "public"."poll_responses" ENABLE ROW LEVEL SECURITY;
 
@@ -548,21 +552,21 @@ CREATE OR REPLACE TRIGGER "poll_response_added_or_deleted"
 -- =============================================
 
 -- Users table policies
-CREATE POLICY "Users can view any user profile" ON "public"."users"
+CREATE POLICY "Public can view all users" ON "public"."users"
 FOR SELECT USING (true);
 
 CREATE POLICY "Users can update their own profile" ON "public"."users"
-FOR UPDATE USING (auth.uid() = id) WITH CHECK (auth.uid() = id);
+FOR UPDATE USING (auth.uid() = id);
 
 CREATE POLICY "Admins can manage all users" ON "public"."users"
 FOR ALL USING (is_admin());
 
 -- Profiles table policies
 CREATE POLICY "Users can view their own profile" ON "public"."profiles"
-FOR SELECT USING (auth.uid() = id);
+FOR SELECT USING (auth.uid() = id OR is_admin());
 
 CREATE POLICY "Users can update their own profile" ON "public"."profiles"
-FOR UPDATE USING (auth.uid() = id) WITH CHECK (auth.uid() = id);
+FOR UPDATE USING (auth.uid() = id);
 
 CREATE POLICY "Admins can manage all profiles" ON "public"."profiles"
 FOR ALL USING (is_admin());
@@ -575,10 +579,10 @@ CREATE POLICY "Authenticated users can create leaders" ON "public"."leaders"
 FOR INSERT WITH CHECK (auth.role() = 'authenticated');
 
 CREATE POLICY "Users can view their own submitted leaders" ON "public"."leaders"
-FOR SELECT USING (auth.uid() = "addedByUserId");
+FOR SELECT USING (auth.uid() = "addedByUserId" OR is_admin());
 
 CREATE POLICY "Users can update their own submitted leaders" ON "public"."leaders"
-FOR UPDATE USING (auth.uid() = "addedByUserId") WITH CHECK (auth.uid() = "addedByUserId");
+FOR UPDATE USING (auth.uid() = "addedByUserId" OR is_admin());
 
 CREATE POLICY "Admins can manage all leaders" ON "public"."leaders"
 FOR ALL USING (is_admin());
@@ -588,7 +592,7 @@ CREATE POLICY "Public can view all ratings" ON "public"."ratings"
 FOR SELECT USING (true);
 
 CREATE POLICY "Users can manage their own ratings" ON "public"."ratings"
-FOR ALL USING (auth.uid() = "userId") WITH CHECK (auth.uid() = "userId");
+FOR ALL USING (auth.uid() = "userId");
 
 CREATE POLICY "Admins can manage all ratings" ON "public"."ratings"
 FOR ALL USING (is_admin());
@@ -609,10 +613,10 @@ FOR ALL USING (is_admin());
 
 -- Admin Messages policies
 CREATE POLICY "Users can view their own messages" ON "public"."admin_messages"
-FOR SELECT USING (auth.uid() = user_id);
+FOR SELECT USING (auth.uid() = user_id OR is_admin());
 
 CREATE POLICY "Users can mark their own messages as read" ON "public"."admin_messages"
-FOR UPDATE USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
+FOR UPDATE USING (auth.uid() = user_id);
 
 CREATE POLICY "Admins can manage all messages" ON "public"."admin_messages"
 FOR ALL USING (is_admin());
@@ -622,7 +626,7 @@ CREATE POLICY "Users can create support tickets" ON "public"."support_tickets"
 FOR INSERT WITH CHECK (auth.uid() = user_id OR auth.role() = 'anon');
 
 CREATE POLICY "Users can view their own tickets" ON "public"."support_tickets"
-FOR SELECT USING (auth.uid() = user_id);
+FOR SELECT USING (auth.uid() = user_id OR is_admin());
 
 CREATE POLICY "Admins can manage all tickets" ON "public"."support_tickets"
 FOR ALL USING (is_admin());
@@ -650,7 +654,7 @@ CREATE POLICY "Authenticated users can create poll responses" ON "public"."poll_
 FOR INSERT WITH CHECK (auth.uid() = user_id);
 
 CREATE POLICY "Users can view their own responses" ON "public"."poll_responses"
-FOR SELECT USING (auth.uid() = user_id);
+FOR SELECT USING (auth.uid() = user_id OR is_admin());
 
 CREATE POLICY "Admins can view all responses" ON "public"."poll_responses"
 FOR SELECT USING (is_admin());
@@ -695,10 +699,14 @@ ON CONFLICT DO NOTHING;
 CREATE INDEX IF NOT EXISTS "idx_leaders_status" ON "public"."leaders" ("status");
 CREATE INDEX IF NOT EXISTS "idx_leaders_election_type" ON "public"."leaders" ("electionType");
 CREATE INDEX IF NOT EXISTS "idx_leaders_location" ON "public"."leaders" USING GIN ("location");
+CREATE INDEX IF NOT EXISTS "idx_leaders_added_by_user" ON "public"."leaders" ("addedByUserId");
 CREATE INDEX IF NOT EXISTS "idx_ratings_leader_id" ON "public"."ratings" ("leaderId");
 CREATE INDEX IF NOT EXISTS "idx_ratings_user_id" ON "public"."ratings" ("userId");
 CREATE INDEX IF NOT EXISTS "idx_ratings_updated_at" ON "public"."ratings" ("updatedAt");
 CREATE INDEX IF NOT EXISTS "idx_notifications_active" ON "public"."notifications" ("isActive");
 CREATE INDEX IF NOT EXISTS "idx_admin_messages_user_read" ON "public"."admin_messages" (user_id, "isRead");
+CREATE INDEX IF NOT EXISTS "idx_users_email" ON "public"."users" ("email");
+CREATE INDEX IF NOT EXISTS "idx_users_created_at" ON "public"."users" ("createdAt");
+CREATE INDEX IF NOT EXISTS "idx_users_blocked" ON "public"."users" ("isBlocked");
 
 -- End of schema

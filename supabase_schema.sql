@@ -789,34 +789,121 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
--- Function to create admin user
-CREATE OR REPLACE FUNCTION public.create_admin_user(
-    p_email text,
-    p_password text,
-    p_name text DEFAULT 'Admin User'
+-- Function to create admin user (use Supabase Admin API instead)
+CREATE OR REPLACE FUNCTION public.promote_user_to_admin(
+    p_user_id uuid,
+    p_admin_level text DEFAULT 'admin'
 )
-RETURNS uuid AS $$
-DECLARE
-    user_id uuid;
+RETURNS boolean AS $$
 BEGIN
-    -- This function should be called from the server side only
-    -- Insert into auth.users (this is a simplified example)
-    INSERT INTO auth.users (id, email, encrypted_password, email_confirmed_at, created_at, updated_at)
-    VALUES (
-        gen_random_uuid(),
-        p_email,
-        crypt(p_password, gen_salt('bf')),
-        NOW(),
-        NOW(),
-        NOW()
-    ) RETURNING id INTO user_id;
-    
-    -- Update user role to admin
+    -- Promote existing user to admin
     UPDATE public.users 
-    SET role = 'admin', name = p_name
-    WHERE id = user_id;
+    SET role = p_admin_level::public.user_role,
+        "updatedAt" = NOW()
+    WHERE id = p_user_id;
     
-    RETURN user_id;
+    -- Log the promotion
+    INSERT INTO public.audit_logs (user_id, action, table_name, record_id, new_values)
+    VALUES (
+        p_user_id,
+        'PROMOTE_TO_ADMIN',
+        'users',
+        p_user_id,
+        jsonb_build_object('new_role', p_admin_level)
+    );
+    
+    RETURN true;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Function to get user profile details
+CREATE OR REPLACE FUNCTION public.get_user_profile(p_user_id uuid)
+RETURNS TABLE(
+    id uuid,
+    email text,
+    name text,
+    gender text,
+    age integer,
+    state text,
+    "mpConstituency" text,
+    "mlaConstituency" text,
+    panchayat text,
+    role text,
+    "createdAt" timestamptz,
+    "updatedAt" timestamptz,
+    "lastLoginAt" timestamptz,
+    "isEmailVerified" boolean,
+    avatar_url text,
+    phone_number text,
+    bio text,
+    preferences jsonb,
+    total_ratings bigint,
+    total_leaders_added bigint,
+    avg_rating_given numeric
+) AS $$
+BEGIN
+    RETURN QUERY
+    SELECT 
+        u.id,
+        u.email,
+        u.name,
+        u.gender,
+        u.age,
+        u.state,
+        u."mpConstituency",
+        u."mlaConstituency",
+        u.panchayat,
+        u.role::text,
+        u."createdAt",
+        u."updatedAt",
+        u."lastLoginAt",
+        u."isEmailVerified",
+        u.avatar_url,
+        u.phone_number,
+        u.bio,
+        u.preferences,
+        (SELECT COUNT(*) FROM public.ratings r WHERE r."userId" = u.id) as total_ratings,
+        (SELECT COUNT(*) FROM public.leaders l WHERE l."addedByUserId" = u.id) as total_leaders_added,
+        (SELECT ROUND(AVG(r.rating), 2) FROM public.ratings r WHERE r."userId" = u.id) as avg_rating_given
+    FROM public.users u
+    WHERE u.id = p_user_id;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Function to update user profile
+CREATE OR REPLACE FUNCTION public.update_user_profile(
+    p_user_id uuid,
+    p_name text DEFAULT NULL,
+    p_gender text DEFAULT NULL,
+    p_age integer DEFAULT NULL,
+    p_state text DEFAULT NULL,
+    p_mp_constituency text DEFAULT NULL,
+    p_mla_constituency text DEFAULT NULL,
+    p_panchayat text DEFAULT NULL,
+    p_avatar_url text DEFAULT NULL,
+    p_phone_number text DEFAULT NULL,
+    p_bio text DEFAULT NULL,
+    p_preferences jsonb DEFAULT NULL
+)
+RETURNS boolean AS $$
+BEGIN
+    UPDATE public.users 
+    SET 
+        name = COALESCE(p_name, name),
+        gender = COALESCE(p_gender, gender),
+        age = COALESCE(p_age, age),
+        state = COALESCE(p_state, state),
+        "mpConstituency" = COALESCE(p_mp_constituency, "mpConstituency"),
+        "mlaConstituency" = COALESCE(p_mla_constituency, "mlaConstituency"),
+        panchayat = COALESCE(p_panchayat, panchayat),
+        avatar_url = COALESCE(p_avatar_url, avatar_url),
+        phone_number = COALESCE(p_phone_number, phone_number),
+        bio = COALESCE(p_bio, bio),
+        preferences = COALESCE(p_preferences, preferences),
+        "updatedAt" = NOW()
+    WHERE id = p_user_id;
+    
+    RETURN FOUND;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
@@ -998,8 +1085,94 @@ CREATE POLICY "Users can view their own audit logs" ON public.audit_logs
 -- 5. INITIAL DATA AND SETUP
 -- =============================================
 
--- Create initial admin user (call this from your application setup)
--- SELECT public.create_admin_user('admin@politirate.com', 'your_secure_password', 'System Administrator');
+-- Admin User Creation Instructions:
+-- 1. Create admin user through Supabase Auth Dashboard or API
+-- 2. Then promote them using: SELECT public.promote_user_to_admin('user_id_here', 'admin');
+
+-- Function to initialize default admin (call after creating user through Supabase Auth)
+CREATE OR REPLACE FUNCTION public.initialize_default_admin(
+    p_admin_email text DEFAULT 'admin@politirate.com'
+)
+RETURNS text AS $$
+DECLARE
+    admin_user_id uuid;
+    result_message text;
+BEGIN
+    -- Check if admin user already exists
+    SELECT id INTO admin_user_id 
+    FROM public.users 
+    WHERE email = p_admin_email AND role = 'admin';
+    
+    IF admin_user_id IS NOT NULL THEN
+        result_message := 'Admin user already exists with ID: ' || admin_user_id;
+    ELSE
+        -- Look for user with this email
+        SELECT id INTO admin_user_id 
+        FROM public.users 
+        WHERE email = p_admin_email;
+        
+        IF admin_user_id IS NOT NULL THEN
+            -- Promote existing user to admin
+            PERFORM public.promote_user_to_admin(admin_user_id, 'admin');
+            result_message := 'User promoted to admin with ID: ' || admin_user_id;
+        ELSE
+            result_message := 'User not found. Please create user through Supabase Auth first, then call this function.';
+        END IF;
+    END IF;
+    
+    RETURN result_message;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- User Profile Management Functions
+CREATE OR REPLACE FUNCTION public.get_user_dashboard_stats(p_user_id uuid)
+RETURNS TABLE(
+    total_ratings bigint,
+    total_leaders_added bigint,
+    avg_rating_given numeric,
+    recent_activities jsonb,
+    account_age_days integer,
+    profile_completion_percentage integer
+) AS $$
+BEGIN
+    RETURN QUERY
+    SELECT 
+        (SELECT COUNT(*) FROM public.ratings r WHERE r."userId" = p_user_id) as total_ratings,
+        (SELECT COUNT(*) FROM public.leaders l WHERE l."addedByUserId" = p_user_id) as total_leaders_added,
+        (SELECT ROUND(AVG(r.rating), 2) FROM public.ratings r WHERE r."userId" = p_user_id) as avg_rating_given,
+        (SELECT jsonb_agg(
+            jsonb_build_object(
+                'type', 'rating',
+                'leaderName', l.name,
+                'rating', r.rating,
+                'date', r."updatedAt"
+            )
+        ) FROM public.ratings r 
+        JOIN public.leaders l ON r."leaderId" = l.id 
+        WHERE r."userId" = p_user_id 
+        ORDER BY r."updatedAt" DESC 
+        LIMIT 5) as recent_activities,
+        (SELECT EXTRACT(DAYS FROM NOW() - u."createdAt")::integer FROM public.users u WHERE u.id = p_user_id) as account_age_days,
+        (SELECT 
+            CASE 
+                WHEN u.name IS NOT NULL THEN 20 ELSE 0 END +
+            CASE 
+                WHEN u.gender IS NOT NULL THEN 15 ELSE 0 END +
+            CASE 
+                WHEN u.age IS NOT NULL THEN 15 ELSE 0 END +
+            CASE 
+                WHEN u.state IS NOT NULL THEN 15 ELSE 0 END +
+            CASE 
+                WHEN u."mpConstituency" IS NOT NULL THEN 10 ELSE 0 END +
+            CASE 
+                WHEN u."mlaConstituency" IS NOT NULL THEN 10 ELSE 0 END +
+            CASE 
+                WHEN u.bio IS NOT NULL THEN 10 ELSE 0 END +
+            CASE 
+                WHEN u.avatar_url IS NOT NULL THEN 5 ELSE 0 END
+        FROM public.users u WHERE u.id = p_user_id) as profile_completion_percentage;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
 
 -- Insert sample site settings
 UPDATE public.site_settings SET

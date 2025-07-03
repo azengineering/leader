@@ -7,6 +7,23 @@
 -- 1. Drop existing tables and recreate (if needed)
 -- =============================================
 
+-- Drop existing functions first to avoid conflicts
+DROP FUNCTION IF EXISTS public.handle_new_rating(uuid,uuid,integer,text,text) CASCADE;
+DROP FUNCTION IF EXISTS public.handle_new_rating(uuid,uuid,integer,text,public.citext) CASCADE;
+DROP FUNCTION IF EXISTS public.handle_rating_deletion(uuid,uuid) CASCADE;
+DROP FUNCTION IF EXISTS public.get_reviews_for_leader(uuid) CASCADE;
+DROP FUNCTION IF EXISTS public.get_user_activities(uuid) CASCADE;
+DROP FUNCTION IF EXISTS public.get_all_activities() CASCADE;
+DROP FUNCTION IF EXISTS public.update_leader_rating() CASCADE;
+DROP FUNCTION IF EXISTS public.handle_new_user() CASCADE;
+DROP FUNCTION IF EXISTS public.is_admin(uuid) CASCADE;
+DROP FUNCTION IF EXISTS public.get_admin_polls() CASCADE;
+DROP FUNCTION IF EXISTS public.get_active_polls_for_user(uuid) CASCADE;
+DROP FUNCTION IF EXISTS public.submit_poll_response(uuid,uuid,jsonb) CASCADE;
+DROP FUNCTION IF EXISTS public.get_ticket_stats() CASCADE;
+DROP FUNCTION IF EXISTS public.create_admin_user(text) CASCADE;
+DROP FUNCTION IF EXISTS public.ensure_user_profile_exists() CASCADE;
+
 -- First, let's make sure we have clean slate
 DROP TABLE IF EXISTS public.contact_messages CASCADE;
 DROP TABLE IF EXISTS public.support_tickets CASCADE;
@@ -116,7 +133,7 @@ CREATE TABLE public.admin_messages (
     "createdAt" timestamptz NOT NULL DEFAULT now()
 );
 
--- Site settings table (fixed ID type to text)
+-- Site settings table
 CREATE TABLE public.site_settings (
     id text NOT NULL PRIMARY KEY DEFAULT 'main',
     maintenance_active boolean NOT NULL DEFAULT false,
@@ -132,7 +149,7 @@ CREATE TABLE public.site_settings (
     "updatedAt" timestamptz NOT NULL DEFAULT now()
 );
 
--- Notifications table (fixed column name to endTime)
+-- Notifications table
 CREATE TABLE public.notifications (
     id uuid NOT NULL PRIMARY KEY DEFAULT gen_random_uuid(),
     message text NOT NULL,
@@ -297,6 +314,31 @@ BEGIN
         SELECT 1 FROM public.users 
         WHERE id = user_id AND role IN ('admin', 'super_admin')
     );
+END;
+$$;
+
+-- Function to ensure user profile exists
+CREATE OR REPLACE FUNCTION public.ensure_user_profile_exists()
+RETURNS void
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+DECLARE
+    v_user_id uuid := auth.uid();
+    v_user_email text;
+    v_user_name text;
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM public.users WHERE id = v_user_id) THEN
+        -- Get email and name from auth.users
+        SELECT email, raw_user_meta_data->>'name'
+        INTO v_user_email, v_user_name
+        FROM auth.users
+        WHERE id = v_user_id;
+
+        -- Insert into public.users
+        INSERT INTO public.users (id, email, name)
+        VALUES (v_user_id, v_user_email, v_user_name);
+    END IF;
 END;
 $$;
 
@@ -552,6 +594,30 @@ BEGIN
 END;
 $$;
 
+-- Function to create admin user
+CREATE OR REPLACE FUNCTION public.create_admin_user(admin_email text)
+RETURNS void
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+BEGIN
+    UPDATE public.users 
+    SET role = 'super_admin' 
+    WHERE id IN (
+        SELECT id FROM auth.users 
+        WHERE email = admin_email
+    );
+    
+    -- If user doesn't exist in users table, create them
+    IF NOT FOUND THEN
+        INSERT INTO public.users (id, email, name, role)
+        SELECT id, email, COALESCE(raw_user_meta_data->>'name', split_part(email, '@', 1)), 'super_admin'
+        FROM auth.users
+        WHERE email = admin_email;
+    END IF;
+END;
+$$;
+
 -- Create triggers
 DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
 CREATE TRIGGER on_auth_user_created
@@ -726,29 +792,19 @@ GRANT ALL ON ALL TABLES IN SCHEMA public TO service_role;
 GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO service_role;
 GRANT ALL ON ALL FUNCTIONS IN SCHEMA public TO service_role;
 
--- Create admin user function (run this after creating your first user)
-CREATE OR REPLACE FUNCTION public.create_admin_user(admin_email text)
-RETURNS void
-LANGUAGE plpgsql
-SECURITY DEFINER
-AS $$
-BEGIN
-    UPDATE public.users 
-    SET role = 'super_admin' 
-    WHERE id IN (
-        SELECT id FROM auth.users 
-        WHERE email = admin_email
-    );
-    
-    -- If user doesn't exist in users table, create them
-    IF NOT FOUND THEN
-        INSERT INTO public.users (id, email, name, role)
-        SELECT id, email, COALESCE(raw_user_meta_data->>'name', split_part(email, '@', 1)), 'super_admin'
-        FROM auth.users
-        WHERE email = admin_email;
-    END IF;
-END;
-$$;
+-- Grant execute permissions on specific functions
+GRANT EXECUTE ON FUNCTION public.handle_new_rating(uuid, uuid, integer, text, text) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.handle_rating_deletion(uuid, uuid) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.get_reviews_for_leader(uuid) TO anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.get_user_activities(uuid) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.get_all_activities() TO authenticated;
+GRANT EXECUTE ON FUNCTION public.get_active_polls_for_user(uuid) TO anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.submit_poll_response(uuid, uuid, jsonb) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.ensure_user_profile_exists() TO authenticated;
+GRANT EXECUTE ON FUNCTION public.get_admin_polls() TO authenticated;
+GRANT EXECUTE ON FUNCTION public.get_ticket_stats() TO authenticated;
+GRANT EXECUTE ON FUNCTION public.create_admin_user(text) TO service_role;
+GRANT EXECUTE ON FUNCTION public.is_admin(uuid) TO authenticated;
 
 -- Comment with usage instructions
 COMMENT ON FUNCTION public.create_admin_user IS 'Use this function to make a user an admin: SELECT create_admin_user(''your-email@example.com'');';

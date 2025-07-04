@@ -871,7 +871,8 @@ RETURNS TABLE(
     "createdAt" timestamptz,
     "updatedAt" timestamptz,
     "lastLoginAt" timestamptz,
-    "isEmailVerified" boolean,
+    "isEmailVerified"```text
+,
     avatar_url text,
     phone_number text,
     bio text,
@@ -943,6 +944,59 @@ BEGIN
     WHERE id = p_user_id;
 
     RETURN FOUND;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Function to get users with pagination and search
+CREATE OR REPLACE FUNCTION public.get_users_paginated(
+    p_limit integer DEFAULT 20,
+    p_offset integer DEFAULT 0,
+    p_search text DEFAULT NULL
+)
+RETURNS TABLE(
+    id uuid,
+    email text,
+    name text,
+    role user_role,
+    "createdAt" timestamptz,
+    "updatedAt" timestamptz,
+    "lastLoginAt" timestamptz,
+    "isEmailVerified" boolean,
+    avatar_url text,
+    phone_number text,
+    bio text,
+    date_of_birth date,
+    address text,
+    state text,
+    district text,
+    constituency text,
+    panchayat text,
+    pin_code text,
+    aadhar_number text,
+    voter_id text,
+    pan_number text,
+    driving_license text,
+    passport_number text,
+    gender text,
+    occupation text,
+    education text,
+    income_range text,
+    marital_status text,
+    total_count bigint
+) AS $$
+BEGIN
+    RETURN QUERY
+    SELECT 
+        u.*,
+        COUNT(*) OVER() AS total_count
+    FROM public.users u
+    WHERE 
+        (p_search IS NULL OR 
+         u.name ILIKE '%' || p_search || '%' OR 
+         u.email ILIKE '%' || p_search || '%' OR
+         CAST(u.id AS text) ILIKE '%' || p_search || '%')
+    ORDER BY u."createdAt" DESC
+    LIMIT p_limit OFFSET p_offset;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 

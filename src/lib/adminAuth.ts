@@ -29,18 +29,18 @@ export async function authenticateAdmin(email: string, password: string): Promis
     }
 
     // Get user profile with admin role verification
-    const { data: profile, error: profileError } = await supabase
-      .from('profiles')
+    const { data: userProfile, error: profileError } = await supabase
+      .from('users')
       .select('role, name')
       .eq('id', authData.user.id)
       .single();
 
-    if (profileError || !profile) {
+    if (profileError || !userProfile) {
       await supabase.auth.signOut();
       throw new Error('Unable to verify admin status');
     }
 
-    if (!['admin', 'super_admin'].includes(profile.role)) {
+    if (!['admin', 'super_admin'].includes(userProfile.role)) {
       await supabase.auth.signOut();
       throw new Error('Access denied. Admin privileges required.');
     }
@@ -50,8 +50,8 @@ export async function authenticateAdmin(email: string, password: string): Promis
       user: {
         id: authData.user.id,
         email: authData.user.email!,
-        role: profile.role as 'admin' | 'super_admin',
-        name: profile.name || authData.user.email?.split('@')[0],
+        role: userProfile.role as 'admin' | 'super_admin',
+        name: userProfile.name || authData.user.email?.split('@')[0],
       },
       isValid: true,
       expiresAt: Date.now() + SESSION_DURATION,
@@ -93,13 +93,13 @@ export async function checkAdminAuth(): Promise<AdminSession | null> {
     }
 
     // Verify admin role is still valid
-    const { data: profile } = await supabase
-      .from('profiles')
+    const { data: userProfile } = await supabase
+      .from('users')
       .select('role')
       .eq('id', session.user.id)
       .single();
 
-    if (!profile || !['admin', 'super_admin'].includes(profile.role)) {
+    if (!userProfile || !['admin', 'super_admin'].includes(userProfile.role)) {
       await adminLogout();
       return null;
     }

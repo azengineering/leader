@@ -31,7 +31,7 @@ EXCEPTION
 END $$;
 
 -- Custom type for user roles
-CREATE TYPE public.user_role AS ENUM ('user', 'admin', 'moderator');
+CREATE TYPE public.user_role AS ENUM ('user', 'admin', 'super_admin');
 
 -- Custom type for notification types
 CREATE TYPE public.notification_type AS ENUM ('general', 'poll', 'announcement', 'maintenance');
@@ -823,7 +823,7 @@ RETURNS boolean AS $$
 BEGIN
     RETURN EXISTS (
         SELECT 1 FROM public.users 
-        WHERE id = user_id AND role IN ('admin', 'moderator')
+        WHERE id = user_id AND role IN ('admin', 'super_admin')
     );
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;

@@ -396,6 +396,35 @@ CREATE OR REPLACE TRIGGER on_auth_user_created
     AFTER INSERT ON auth.users
     FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
 
+-- Function to ensure user profile exists (for auth state changes)
+CREATE OR REPLACE FUNCTION public.ensure_user_profile_exists()
+RETURNS void AS $$
+DECLARE
+    user_id UUID := auth.uid();
+    user_email TEXT;
+    user_name TEXT;
+BEGIN
+    IF user_id IS NULL THEN
+        RAISE EXCEPTION 'Not authenticated';
+    END IF;
+
+    -- Check if profile already exists
+    IF EXISTS (SELECT 1 FROM public.users WHERE id = user_id) THEN
+        RETURN;
+    END IF;
+
+    -- Get user info from auth.users
+    SELECT email, COALESCE(raw_user_meta_data->>'name', raw_user_meta_data->>'full_name', split_part(email, '@', 1))
+    INTO user_email, user_name
+    FROM auth.users
+    WHERE id = user_id;
+
+    -- Create profile
+    INSERT INTO public.users (id, email, name, "isEmailVerified", "lastLoginAt")
+    VALUES (user_id, user_email, user_name, true, NOW());
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
 -- Function to update leader rating
 CREATE OR REPLACE FUNCTION public.update_leader_rating()
 RETURNS TRIGGER AS $$

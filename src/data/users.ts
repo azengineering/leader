@@ -1,4 +1,3 @@
-
 'use server';
 
 import { supabase } from '@/lib/db';
@@ -28,7 +27,7 @@ export interface AdminMessage {
 export async function findUserById(id: string): Promise<User | null> {
   try {
     const { data, error } = await supabase
-      .from('profiles')
+      .from('users')
       .select('*')
       .eq('id', id)
       .single();
@@ -47,7 +46,7 @@ export async function findUserById(id: string): Promise<User | null> {
 export async function updateUserProfile(userId: string, profileData: Partial<Omit<User, 'id' | 'email' | 'createdAt'>>): Promise<User | null> {
   try {
     const { data, error } = await supabaseAdmin
-      .from('profiles')
+      .from('users')
       .update(profileData)
       .eq('id', userId)
       .select()
@@ -66,10 +65,10 @@ export async function updateUserProfile(userId: string, profileData: Partial<Omi
 
 export async function getUserCount(filters?: { startDate?: string, endDate?: string, location?: string }): Promise<number> {
   try {
-    let query = supabaseAdmin.from('profiles').select('*', { count: 'exact', head: true });
+    let query = supabaseAdmin.from('users').select('*', { count: 'exact', head: true });
 
     if (filters?.startDate && filters?.endDate) {
-      query = query.gte('createdAt', filters.startDate).lte('createdAt', filters.endDate);
+      query = query.gte('"createdAt"', filters.startDate).lte('"createdAt"', filters.endDate);
     }
     if (filters?.location) {
       query = query.ilike('location', `%${filters.location}%`);
@@ -90,12 +89,12 @@ export async function getUserCount(filters?: { startDate?: string, endDate?: str
 export async function blockUser(userId: string, reason: string, blockedUntil: string | null): Promise<void> {
   try {
     const { error } = await supabaseAdmin
-      .from('profiles')
+      .from('users')
       .update({ 
-        isBlocked: true, 
-        blockReason: reason, 
-        blockedUntil: blockedUntil,
-        updatedAt: new Date().toISOString()
+        "isBlocked": true, 
+        "blockReason": reason, 
+        "blockedUntil": blockedUntil,
+        "updatedAt": new Date().toISOString()
       })
       .eq('id', userId);
 
@@ -112,12 +111,12 @@ export async function blockUser(userId: string, reason: string, blockedUntil: st
 export async function unblockUser(userId: string): Promise<void> {
   try {
     const { error } = await supabaseAdmin
-      .from('profiles')
+      .from('users')
       .update({ 
-        isBlocked: false, 
-        blockReason: null, 
-        blockedUntil: null,
-        updatedAt: new Date().toISOString()
+        "isBlocked": false, 
+        "blockReason": null, 
+        "blockedUntil": null,
+        "updatedAt": new Date().toISOString()
       })
       .eq('id', userId);
 
@@ -147,7 +146,7 @@ export async function getUsersForAdminPanel(filters: {
 } = {}): Promise<UserWithCounts[]> {
   try {
     let query = supabaseAdmin
-      .from('profiles')
+      .from('users')
       .select(`
         id,
         name,
@@ -206,7 +205,7 @@ export async function getUsersForAdminPanel(filters: {
 export async function getUsers(query?: string): Promise<Partial<User>[]> {
   try {
     let selectQuery = supabaseAdmin
-      .from('profiles')
+      .from('users')
       .select(`
         *,
         leaders!leaders_addedByUserId_fkey(count),

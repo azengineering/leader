@@ -1,4 +1,3 @@
-
 -- =============================================
 -- POLITIRATE PLATFORM - COMPLETE SUPABASE SCHEMA
 -- =============================================
@@ -10,15 +9,26 @@ CREATE EXTENSION IF NOT EXISTS "citext";
 -- =============================================
 -- 1. ENUMERATED TYPES
 -- =============================================
-
 -- Custom type for leader status
-CREATE TYPE public.leader_status AS ENUM ('pending', 'approved', 'rejected');
+DO $$ BEGIN
+    CREATE TYPE public.leader_status AS ENUM ('pending', 'approved', 'rejected');
+EXCEPTION
+    WHEN duplicate_object THEN null;
+END $$;
 
 -- Custom type for support ticket status
-CREATE TYPE public.ticket_status AS ENUM ('open', 'in-progress', 'resolved', 'closed');
+DO $$ BEGIN
+    CREATE TYPE public.ticket_status AS ENUM ('open', 'in-progress', 'resolved', 'closed');
+EXCEPTION
+    WHEN duplicate_object THEN null;
+END $$;
 
 -- Custom type for poll question types
-CREATE TYPE public.poll_question_type AS ENUM ('yes_no', 'multiple_choice');
+DO $$ BEGIN
+    CREATE TYPE public.poll_question_type AS ENUM ('yes_no', 'multiple_choice');
+EXCEPTION
+    WHEN duplicate_object THEN null;
+END $$;
 
 -- Custom type for user roles
 CREATE TYPE public.user_role AS ENUM ('user', 'admin', 'moderator');
@@ -691,7 +701,7 @@ BEGIN
     INSERT INTO public.poll_responses (poll_id, user_id, answers, user_agent, ip_address)
     VALUES (p_poll_id, p_user_id, p_answers, p_user_agent, p_ip_address)
     RETURNING id INTO response_id;
-    
+
     -- Update vote counts for each option
     FOR rec IN SELECT (value->>'optionId')::uuid as option_id FROM jsonb_array_elements(p_answers)
     LOOP
@@ -699,7 +709,7 @@ BEGIN
         SET vote_count = vote_count + 1 
         WHERE id = rec.option_id;
     END LOOP;
-    
+
     RETURN response_id;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
@@ -830,7 +840,7 @@ BEGIN
     SET role = p_admin_level::public.user_role,
         "updatedAt" = NOW()
     WHERE id = p_user_id;
-    
+
     -- Log the promotion
     INSERT INTO public.audit_logs (user_id, action, table_name, record_id, new_values)
     VALUES (
@@ -840,7 +850,7 @@ BEGIN
         p_user_id,
         jsonb_build_object('new_role', p_admin_level)
     );
-    
+
     RETURN true;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
@@ -861,7 +871,8 @@ RETURNS TABLE(
     "createdAt" timestamptz,
     "updatedAt" timestamptz,
     "lastLoginAt" timestamptz,
-    "isEmailVerified" boolean,
+    ```
+"isEmailVerified" boolean,
     avatar_url text,
     phone_number text,
     bio text,
@@ -931,7 +942,7 @@ BEGIN
         preferences = COALESCE(p_preferences, preferences),
         "updatedAt" = NOW()
     WHERE id = p_user_id;
-    
+
     RETURN FOUND;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
@@ -1131,7 +1142,7 @@ BEGIN
     SELECT id INTO admin_user_id 
     FROM public.users 
     WHERE email = p_admin_email AND role = 'admin';
-    
+
     IF admin_user_id IS NOT NULL THEN
         result_message := 'Admin user already exists with ID: ' || admin_user_id;
     ELSE
@@ -1139,7 +1150,7 @@ BEGIN
         SELECT id INTO admin_user_id 
         FROM public.users 
         WHERE email = p_admin_email;
-        
+
         IF admin_user_id IS NOT NULL THEN
             -- Promote existing user to admin
             PERFORM public.promote_user_to_admin(admin_user_id, 'admin');
@@ -1148,7 +1159,7 @@ BEGIN
             result_message := 'User not found. Please create user through Supabase Auth first, then call this function.';
         END IF;
     END IF;
-    
+
     RETURN result_message;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;

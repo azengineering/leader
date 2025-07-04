@@ -1199,11 +1199,11 @@ VALUES (
 -- =============================================
 
 -- Additional indexes for common queries
-CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_leaders_search ON public.leaders USING gin(to_tsvector('english', name || ' ' || COALESCE("partyName", '') || ' ' || constituency));
-CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_ratings_leader_rating ON public.ratings("leaderId", rating);
-CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_users_demographics ON public.users(state, gender, age) WHERE "isBlocked" = false;
-CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_support_tickets_composite ON public.support_tickets(status, priority, created_at);
-CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_notifications_active_time ON public.notifications("isActive", "startTime", "endTime") WHERE "isActive" = true;
+CREATE INDEX IF NOT EXISTS idx_leaders_search ON public.leaders USING gin(to_tsvector('english', name || ' ' || COALESCE("partyName", '') || ' ' || constituency));
+CREATE INDEX IF NOT EXISTS idx_ratings_leader_rating ON public.ratings("leaderId", rating);
+CREATE INDEX IF NOT EXISTS idx_users_demographics ON public.users(state, gender, age) WHERE "isBlocked" = false;
+CREATE INDEX IF NOT EXISTS idx_support_tickets_composite ON public.support_tickets(status, priority, created_at);
+CREATE INDEX IF NOT EXISTS idx_notifications_active_time ON public.notifications("isActive", "startTime", "endTime") WHERE "isActive" = true;
 
 -- =============================================
 -- SCHEMA COMPLETE

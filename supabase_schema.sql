@@ -871,8 +871,7 @@ RETURNS TABLE(
     "createdAt" timestamptz,
     "updatedAt" timestamptz,
     "lastLoginAt" timestamptz,
-    ```
-"isEmailVerified" boolean,
+    "isEmailVerified" boolean,
     avatar_url text,
     phone_number text,
     bio text,

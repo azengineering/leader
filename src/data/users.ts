@@ -202,47 +202,41 @@ export async function getUsersForAdminPanel(filters: {
   }
 }
 
-export async function getUsers(query?: string): Promise<Partial<User>[]> {
+export async function getUsers(query?: string): Promise<User[]> {
   try {
-    let selectQuery = supabaseAdmin
+    let usersQuery = supabaseAdmin
       .from('users')
       .select(`
         *,
-        leaders!leaders_addedByUserId_fkey(count),
-        ratings!ratings_userId_fkey(count)
+        ratingCount:ratings(count),
+        leaderAddedCount:leaders!leaders_addedByUserId_fkey(count),
+        unreadMessageCount:admin_messages!admin_messages_user_id_fkey(count)
       `)
-      .order('createdAt', { ascending: false });
+      .eq('admin_messages.is_read', false);
 
     if (query) {
-      const searchTerm = `%${query}%`;
-      selectQuery = selectQuery.or(`name.ilike.${searchTerm},id.ilike.${searchTerm}`);
+      // Handle UUID vs string search properly
+      const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(query);
+
+      if (isUUID) {
+        usersQuery = usersQuery.eq('id', query);
+      } else {
+        usersQuery = usersQuery.or(`name.ilike.%${query}%,email.ilike.%${query}%`);
+      }
     }
 
-    const { data, error } = await selectQuery;
+    const { data, error } = await usersQuery
+      .order('createdAt', { ascending: false });
 
     if (error) {
-      console.error("Error fetching users for admin:", error);
-      return [];
+      console.error('Error fetching users for admin:', error);
+      throw new Error(`Failed to fetch users: ${error.message}`);
     }
 
-    // Get emails from auth.users
-    const userIds = (data as any[]).map(user => user.id);
-    const { data: authUsers } = await supabaseAdmin.auth.admin.listUsers();
-
-    const emailMap = new Map();
-    authUsers.users?.forEach(authUser => {
-      emailMap.set(authUser.id, authUser.email);
-    });
-
-    return data.map((u: any) => ({
-      ...u,
-      email: emailMap.get(u.id),
-      leaderAddedCount: u.leaders?.length || 0,
-      ratingCount: u.ratings?.length || 0,
-    }));
+    return data || [];
   } catch (error) {
-    console.error("Error fetching users for admin:", error);
-    return [];
+    console.error('Error in getUsers:', error);
+    throw error;
   }
 }
 

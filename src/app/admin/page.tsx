@@ -3,7 +3,7 @@
 
 import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Users, UserCheck, MessageSquare, Calendar as CalendarIcon, RotateCcw, Loader2 } from "lucide-react";
+import { Users, UserCheck, MessageSquare, Calendar as CalendarIcon, RotateCcw, Loader2, AlertCircle } from "lucide-react";
 import { getUserCount } from "@/data/users";
 import { getLeaderCount, getRatingCount } from "@/data/leaders";
 import { Button } from '@/components/ui/button';
@@ -18,7 +18,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { indianStates } from '@/data/locations';
-
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { useToast } from '@/hooks/use-toast';
 
 interface Stats {
     userCount: number;
@@ -34,21 +35,67 @@ export default function AdminDashboard() {
   const [constituency, setConstituency] = useState<string>('');
   const [isTotalLoading, setIsTotalLoading] = useState(true);
   const [isFilteredLoading, setIsFilteredLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [filterError, setFilterError] = useState<string | null>(null);
+  const { toast } = useToast();
 
   // Fetch total stats on initial load
   useEffect(() => {
     const fetchTotalStats = async () => {
-      setIsTotalLoading(true);
-      const [userCount, leaderCount, ratingCount] = await Promise.all([
-        getUserCount(),
-        getLeaderCount(),
-        getRatingCount(),
-      ]);
-      setTotalStats({ userCount, leaderCount, ratingCount });
-      setIsTotalLoading(false);
+      try {
+        setIsTotalLoading(true);
+        setError(null);
+
+        console.log('Fetching total statistics...');
+        
+        const [userCount, leaderCount, ratingCount] = await Promise.all([
+          getUserCount().catch(err => {
+            console.error('Error fetching user count:', err);
+            return 0;
+          }),
+          getLeaderCount().catch(err => {
+            console.error('Error fetching leader count:', err);
+            return 0;
+          }),
+          getRatingCount().catch(err => {
+            console.error('Error fetching rating count:', err);
+            return 0;
+          }),
+        ]);
+
+        console.log('Stats fetched:', { userCount, leaderCount, ratingCount });
+
+        // Validate the data
+        if (typeof userCount !== 'number' || typeof leaderCount !== 'number' || typeof ratingCount !== 'number') {
+          throw new Error('Invalid data format received from server');
+        }
+
+        setTotalStats({ 
+          userCount: userCount || 0, 
+          leaderCount: leaderCount || 0, 
+          ratingCount: ratingCount || 0 
+        });
+        
+      } catch (error) {
+        console.error('Dashboard stats error:', error);
+        const errorMessage = error instanceof Error ? error.message : 'Failed to load dashboard statistics';
+        setError(errorMessage);
+        
+        toast({ 
+          variant: 'destructive', 
+          title: 'Error loading statistics',
+          description: 'Please check the console for details and try refreshing the page'
+        });
+        
+        // Set fallback stats to prevent UI issues
+        setTotalStats({ userCount: 0, leaderCount: 0, ratingCount: 0 });
+      } finally {
+        setIsTotalLoading(false);
+      }
     };
+
     fetchTotalStats();
-  }, []);
+  }, [toast]);
   
   const handleFilter = async () => {
     if (!date?.from && !date?.to && selectedState === 'all-states' && !constituency.trim()) {
@@ -56,24 +103,56 @@ export default function AdminDashboard() {
         return;
     }
 
-    setIsFilteredLoading(true);
-    setFilteredStats(null); // Clear previous results
+    try {
+      setIsFilteredLoading(true);
+      setFilteredStats(null);
+      setFilterError(null);
 
-    const filters = {
-        startDate: date?.from ? format(date.from, 'yyyy-MM-dd') + 'T00:00:00.000Z' : undefined,
-        endDate: date?.to ? format(date.to, 'yyyy-MM-dd') + 'T23:59:59.999Z' : undefined,
-        state: selectedState === 'all-states' ? undefined : selectedState,
-        constituency: constituency.trim() || undefined,
-    };
-    
-    const [userCount, leaderCount, ratingCount] = await Promise.all([
-      getUserCount(filters),
-      getLeaderCount(filters),
-      getRatingCount(filters),
-    ]);
-    
-    setFilteredStats({ userCount, leaderCount, ratingCount });
-    setIsFilteredLoading(false);
+      const filters = {
+          startDate: date?.from ? format(date.from, 'yyyy-MM-dd') + 'T00:00:00.000Z' : undefined,
+          endDate: date?.to ? format(date.to, 'yyyy-MM-dd') + 'T23:59:59.999Z' : undefined,
+          state: selectedState === 'all-states' ? undefined : selectedState,
+          constituency: constituency.trim() || undefined,
+      };
+
+      console.log('Applying filters:', filters);
+      
+      const [userCount, leaderCount, ratingCount] = await Promise.all([
+        getUserCount(filters).catch(err => {
+          console.error('Error fetching filtered user count:', err);
+          return 0;
+        }),
+        getLeaderCount(filters).catch(err => {
+          console.error('Error fetching filtered leader count:', err);
+          return 0;
+        }),
+        getRatingCount(filters).catch(err => {
+          console.error('Error fetching filtered rating count:', err);
+          return 0;
+        }),
+      ]);
+
+      console.log('Filtered stats:', { userCount, leaderCount, ratingCount });
+      
+      setFilteredStats({ 
+        userCount: userCount || 0, 
+        leaderCount: leaderCount || 0, 
+        ratingCount: ratingCount || 0 
+      });
+      
+    } catch (error) {
+      console.error('Filter error:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Failed to apply filters';
+      setFilterError(errorMessage);
+      
+      toast({
+        variant: 'destructive',
+        title: 'Filter Error',
+        description: 'Failed to apply filters. Please try again.'
+      });
+    } finally {
+      setIsFilteredLoading(false);
+    }
   };
   
   const handleReset = () => {
@@ -81,6 +160,7 @@ export default function AdminDashboard() {
     setSelectedState('all-states');
     setConstituency('');
     setFilteredStats(null);
+    setFilterError(null);
   };
 
   const statCardsData = [
@@ -105,9 +185,41 @@ export default function AdminDashboard() {
     </Card>
   );
 
+  const retryFetch = async () => {
+    setError(null);
+    setIsTotalLoading(true);
+    
+    try {
+      const [userCount, leaderCount, ratingCount] = await Promise.all([
+        getUserCount(),
+        getLeaderCount(),
+        getRatingCount(),
+      ]);
+      
+      setTotalStats({ userCount, leaderCount, ratingCount });
+    } catch (error) {
+      console.error('Retry fetch error:', error);
+      setError('Failed to load dashboard statistics');
+    } finally {
+      setIsTotalLoading(false);
+    }
+  };
+
   return (
     <div className="space-y-8">
         <h1 className="text-3xl font-bold font-headline">Dashboard</h1>
+        
+        {error && (
+          <Alert variant="destructive">
+            <AlertCircle className="h-4 w-4" />
+            <AlertDescription className="flex items-center justify-between">
+              <span>{error}</span>
+              <Button onClick={retryFetch} variant="outline" size="sm" className="ml-4">
+                Retry
+              </Button>
+            </AlertDescription>
+          </Alert>
+        )}
         
         <Card>
             <CardHeader>
@@ -213,11 +325,24 @@ export default function AdminDashboard() {
             </div>
         </div>
         
-        {(isFilteredLoading || filteredStats) && (
+        {(isFilteredLoading || filteredStats || filterError) && (
             <div className="space-y-4">
                 <h2 className="text-2xl font-semibold font-headline">
                     Filtered Results
                 </h2>
+                
+                {filterError && (
+                  <Alert variant="destructive">
+                    <AlertCircle className="h-4 w-4" />
+                    <AlertDescription className="flex items-center justify-between">
+                      <span>{filterError}</span>
+                      <Button onClick={handleFilter} variant="outline" size="sm" className="ml-4">
+                        Retry Filter
+                      </Button>
+                    </AlertDescription>
+                  </Alert>
+                )}
+                
                 <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
                     {statCardsData.map(stat => (
                         <StatCard 

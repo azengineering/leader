@@ -234,9 +234,11 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             <div className="flex-1" />
 
             {/* Mobile user badge */}
-            <Badge variant={adminSession.user.role === 'super_admin' ? 'default' : 'secondary'}>
-              {adminSession.user.role === 'super_admin' ? 'Super Admin' : 'Admin'}
-            </Badge>
+            {adminSession && (
+              <Badge variant={adminSession.user.role === 'super_admin' ? 'default' : 'secondary'}>
+                {adminSession.user.role === 'super_admin' ? 'Super Admin' : 'Admin'}
+              </Badge>
+            )}
           </header>
 
           {/* Page Content */}

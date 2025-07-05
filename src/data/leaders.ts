@@ -177,30 +177,50 @@ export async function getReviewsForLeader(leaderId: string): Promise<Review[]> {
 export async function getRatingDistribution(leaderId: string): Promise<RatingDistribution[]> {
     const { data, error } = await supabaseAdmin
         .from('ratings')
-        .select('rating, count:id')
-        .eq('leaderId', leaderId)
-        .groupBy('rating');
+        .select('rating')
+        .eq('leaderId', leaderId);
 
     if (error) {
         console.error("Error getting rating distribution:", error);
         return [];
     }
-    return (data as any[]).map(d => ({ rating: d.rating, count: d.count }));
+
+    // Group ratings manually
+    const ratingCounts = data.reduce((acc, { rating }) => {
+        acc[rating] = (acc[rating] || 0) + 1;
+        return acc;
+    }, {} as Record<number, number>);
+
+    return Object.entries(ratingCounts).map(([rating, count]) => ({
+        rating: parseInt(rating),
+        count
+    }));
 }
 
 export async function getSocialBehaviourDistribution(leaderId: string): Promise<SocialBehaviourDistribution[]> {
     const { data, error } = await supabaseAdmin
         .from('ratings')
-        .select('socialBehaviour, count:id')
+        .select('socialBehaviour')
         .eq('leaderId', leaderId)
-        .not('socialBehaviour', 'is', null)
-        .groupBy('socialBehaviour');
+        .not('socialBehaviour', 'is', null);
 
     if (error) {
         console.error("Error getting social behaviour distribution:", error);
         return [];
     }
-    return (data as any[]).map(d => ({ name: d.socialBehaviour.charAt(0).toUpperCase() + d.socialBehaviour.slice(1).replace('-', ' '), count: d.count }));
+
+    // Group social behaviours manually
+    const behaviourCounts = data.reduce((acc, { socialBehaviour }) => {
+        if (socialBehaviour) {
+            acc[socialBehaviour] = (acc[socialBehaviour] || 0) + 1;
+        }
+        return acc;
+    }, {} as Record<string, number>);
+
+    return Object.entries(behaviourCounts).map(([behaviour, count]) => ({
+        name: behaviour.charAt(0).toUpperCase() + behaviour.slice(1).replace('-', ' '),
+        count
+    }));
 }
 
 export async function getActivitiesForUser(userId: string): Promise<UserActivity[]> {

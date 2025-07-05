@@ -1346,8 +1346,8 @@ BEGIN
         r.rating,
         r.comment,
         r."updatedAt",
-        r."socialBehaviour",
-        r.category
+        r."socialBehaviour"::text,
+        r.category::text
     FROM public.ratings r
     JOIN public.leaders l ON r."leaderId" = l.id
     JOIN public.users u ON r."userId" = u.id
@@ -1381,8 +1381,8 @@ BEGIN
         r.rating,
         r.comment,
         r."updatedAt",
-        r."socialBehaviour",
-        r.category
+        r."socialBehaviour"::text,
+        r.category::text
     FROM public.ratings r
     JOIN public.leaders l ON r."leaderId" = l.id
     WHERE r."userId" = p_user_id
@@ -1401,10 +1401,35 @@ BEGIN
     r.rating,
     r.comment,
     r."updatedAt",
-    r."socialBehaviour"
+    r."socialBehaviour"::text
   FROM public.ratings r
   JOIN public.users u ON r."userId" = u.id
   WHERE r."leaderId" = p_leader_id
   ORDER BY r."updatedAt" DESC;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Function to handle new rating (upsert)
+CREATE OR REPLACE FUNCTION public.handle_new_rating(
+    p_leader_id uuid,
+    p_user_id uuid,
+    p_rating integer,
+    p_comment text DEFAULT NULL,
+    p_social_behaviour text DEFAULT NULL
+)
+RETURNS void AS $$
+BEGIN
+    INSERT INTO public.ratings (
+        "leaderId", "userId", rating, comment, "socialBehaviour", "updatedAt"
+    )
+    VALUES (
+        p_leader_id, p_user_id, p_rating, p_comment, p_social_behaviour, NOW()
+    )
+    ON CONFLICT ("leaderId", "userId")
+    DO UPDATE SET
+        rating = EXCLUDED.rating,
+        comment = EXCLUDED.comment,
+        "socialBehaviour" = EXCLUDED."socialBehaviour",
+        "updatedAt" = NOW();
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;

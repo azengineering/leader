@@ -191,8 +191,9 @@ export async function getUsersForAdminPanel(filters: {
     const results = (data as any[]).map(user => ({
       ...user,
       email: emailMap.get(user.id),
-      leaderCount: user.leaders?.length || 0,
-      ratingCount: user.ratings?.length || 0,
+      ratingCount: user.ratings?.[0]?.count || 0,
+      leaderAddedCount: user.leaders?.[0]?.count || 0,
+      unreadMessageCount: user.admin_messages?.[0]?.count || 0,
     }));
 
     return results;
@@ -208,9 +209,9 @@ export async function getUsers(query?: string): Promise<User[]> {
       .from('users')
       .select(`
         *,
-        ratingCount:ratings(count),
-        leaderAddedCount:leaders!leaders_addedByUserId_fkey(count),
-        unreadMessageCount:admin_messages!admin_messages_user_id_fkey(count)
+        ratings!inner(count),
+        leaders!leaders_addedByUserId_fkey(count),
+        admin_messages!admin_messages_user_id_fkey(count)
       `)
       .eq('admin_messages.isRead', false);
 

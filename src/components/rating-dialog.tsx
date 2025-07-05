@@ -106,11 +106,11 @@ export default function RatingDialog({ leader, open, onOpenChange, onRatingSucce
     }
     setIsSubmitting(true);
     try {
-      const updatedLeader = await submitRatingAndComment(leader.id, user.id, rating, comment, socialBehaviour);
+      const updatedLeader = await submitRatingAndComment(leader?.id || '', user.id, rating, comment, socialBehaviour);
       if (updatedLeader) {
         toast({
           title: t('ratingDialog.successTitle'),
-          description: t('ratingDialog.successDescription').replace('{leaderName}', leader.name),
+          description: t('ratingDialog.successDescription').replace('{leaderName}', leader?.name || 'the leader'),
         });
         onRatingSuccess(updatedLeader);
         onOpenChange(false);
@@ -134,7 +134,7 @@ export default function RatingDialog({ leader, open, onOpenChange, onRatingSucce
         <DialogHeader>
           <DialogTitle>
             {t('ratingDialog.title').replace('{leaderName}', '')}
-            <span className="font-bold text-primary">{leader.name}</span>
+            <span className="font-bold text-primary">{leader?.name || 'Unknown Leader'}</span>
           </DialogTitle>
           <DialogDescription>
             {t('ratingDialog.description')}

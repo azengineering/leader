@@ -224,7 +224,7 @@ function MyActivitiesPage() {
         <Footer />
       </div>
 
-      {editingActivity && (
+      {editingActivity && editingActivity.leader && (
         <RatingDialog
           leader={editingActivity.leader}
           open={isRatingDialogOpen}

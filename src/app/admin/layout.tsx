@@ -125,38 +125,44 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     </>
   );
 
-  const UserInfo = () => (
-    <div className="space-y-3">
-      <div className="flex items-center gap-3">
-        <div className="flex items-center justify-center w-8 h-8 rounded-full bg-primary/10">
-          <User className="h-4 w-4 text-primary" />
+  const UserInfo = () => {
+    if (!adminSession) {
+      return null;
+    }
+
+    return (
+      <div className="space-y-3">
+        <div className="flex items-center gap-3">
+          <div className="flex items-center justify-center w-8 h-8 rounded-full bg-primary/10">
+            <User className="h-4 w-4 text-primary" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-medium truncate">{adminSession.user.name}</p>
+            <p className="text-xs text-muted-foreground truncate">{adminSession.user.email}</p>
+          </div>
+          <Badge variant={adminSession.user.role === 'super_admin' ? 'default' : 'secondary'} className="text-xs">
+            {adminSession.user.role === 'super_admin' ? 'Super Admin' : 'Admin'}
+          </Badge>
         </div>
-        <div className="flex-1 min-w-0">
-          <p className="text-sm font-medium truncate">{adminSession.user.name}</p>
-          <p className="text-xs text-muted-foreground truncate">{adminSession.user.email}</p>
+
+        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+          <Clock className="h-3 w-3" />
+          <span>Session expires in {sessionTimeRemaining}</span>
         </div>
-        <Badge variant={adminSession.user.role === 'super_admin' ? 'default' : 'secondary'} className="text-xs">
-          {adminSession.user.role === 'super_admin' ? 'Super Admin' : 'Admin'}
-        </Badge>
+
+        <Separator />
+
+        <Button
+          onClick={handleLogout}
+          variant="ghost"
+          className="w-full justify-start text-muted-foreground hover:text-red-600 hover:bg-red-50"
+        >
+          <LogOut className="h-4 w-4 mr-2" />
+          Sign Out
+        </Button>
       </div>
-
-      <div className="flex items-center gap-2 text-xs text-muted-foreground">
-        <Clock className="h-3 w-3" />
-        <span>Session expires in {sessionTimeRemaining}</span>
-      </div>
-
-      <Separator />
-
-      <Button
-        onClick={handleLogout}
-        variant="ghost"
-        className="w-full justify-start text-muted-foreground hover:text-red-600 hover:bg-red-50"
-      >
-        <LogOut className="h-4 w-4 mr-2" />
-        Sign Out
-      </Button>
-    </div>
-  );
+    );
+  };
 
   return (
     <ErrorBoundary>
@@ -180,9 +186,11 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             </div>
 
             {/* User Info */}
-            <div className="border-t p-4">
-              <UserInfo />
-            </div>
+            {adminSession && (
+              <div className="border-t p-4">
+                <UserInfo />
+              </div>
+            )}
           </div>
         </div>
 
@@ -225,9 +233,11 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                 </nav>
 
                 {/* Mobile User Info */}
-                <div className="border-t pt-4">
-                  <UserInfo />
-                </div>
+                {adminSession && (
+                  <div className="border-t pt-4">
+                    <UserInfo />
+                  </div>
+                )}
               </SheetContent>
             </Sheet>
 

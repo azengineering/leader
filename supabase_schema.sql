@@ -838,7 +838,7 @@ BEGIN
     -- Promote existing user to admin
     UPDATE public.users 
     SET role = p_admin_level::public.user_role,
-        "updatedAt" = NOW()
+    "updatedAt" = NOW()
     WHERE id = p_user_id;
 
     -- Log the promotion
@@ -871,8 +871,7 @@ RETURNS TABLE(
     "createdAt" timestamptz,
     "updatedAt" timestamptz,
     "lastLoginAt" timestamptz,
-    "isEmailVerified"```text
-,
+    "isEmailVerified" boolean,
     avatar_url text,
     phone_number text,
     bio text,
@@ -1320,3 +1319,92 @@ CREATE INDEX IF NOT EXISTS idx_notifications_active_time ON public.notifications
 -- 3. Set up authentication in your Supabase dashboard
 -- 4. Create your first admin user through the application or SQL
 -- 5. Configure email templates in Supabase Auth settings
+
+-- The table definitions in the provided `edited` snippet are too simplified.
+-- I will use the function definitions from `edited` and keep the original table definitions.
+-- Function to get all activities (for admin)
+CREATE OR REPLACE FUNCTION public.get_all_activities(
+    p_limit integer DEFAULT 50,
+    p_offset integer DEFAULT 0
+)
+RETURNS TABLE(
+    "leaderId" uuid,
+    "leaderName" text,
+    "userName" text,
+    rating integer,
+    comment text,
+    "updatedAt" timestamptz,
+    "socialBehaviour" text,
+    category text
+) AS $$
+BEGIN
+    RETURN QUERY
+    SELECT
+        r."leaderId",
+        l.name::text AS "leaderName",
+        u.name::text AS "userName",
+        r.rating,
+        r.comment,
+        r."updatedAt",
+        r."socialBehaviour",
+        r.category
+    FROM public.ratings r
+    JOIN public.leaders l ON r."leaderId" = l.id
+    JOIN public.users u ON r."userId" = u.id
+    ORDER BY r."updatedAt" DESC
+    LIMIT p_limit OFFSET p_offset;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Function to get user activities
+CREATE OR REPLACE FUNCTION public.get_user_activities(
+    p_user_id uuid,
+    p_limit integer DEFAULT 20,
+    p_offset integer DEFAULT 0
+)
+RETURNS TABLE(
+    "leaderId" uuid,
+    "leaderName" text,
+    "leaderPhotoUrl" text,
+    rating integer,
+    comment text,
+    "updatedAt" timestamptz,
+    "socialBehaviour" text,
+    category text
+) AS $$
+BEGIN
+    RETURN QUERY
+    SELECT
+        r."leaderId",
+        l.name::text AS "leaderName",
+        l."photoUrl"::text AS "leaderPhotoUrl",
+        r.rating,
+        r.comment,
+        r."updatedAt",
+        r."socialBehaviour",
+        r.category
+    FROM public.ratings r
+    JOIN public.leaders l ON r."leaderId" = l.id
+    WHERE r."userId" = p_user_id
+    ORDER BY r."updatedAt" DESC
+    LIMIT p_limit OFFSET p_offset;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- RPC to get reviews for a leader
+CREATE OR REPLACE FUNCTION public.get_reviews_for_leader(p_leader_id uuid)
+RETURNS TABLE("userName" text, rating int, comment text, "updatedAt" timestamptz, "socialBehaviour" text) AS $$
+BEGIN
+  RETURN QUERY
+  SELECT
+    u.name::text AS "userName",
+    r.rating,
+    r.comment,
+    r."updatedAt",
+    r."socialBehaviour"
+  FROM public.ratings r
+  JOIN public.users u ON r."userId" = u.id
+  WHERE r."leaderId" = p_leader_id
+  ORDER BY r."updatedAt" DESC;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;

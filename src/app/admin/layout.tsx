@@ -56,7 +56,10 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
   // Update session time remaining
   useEffect(() => {
-    if (!adminSession) return;
+    if (!adminSession) {
+      setSessionTimeRemaining('');
+      return;
+    }
 
     const updateTimer = () => {
       const remaining = adminSession.expiresAt - Date.now();
@@ -67,7 +70,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
       const hours = Math.floor(remaining / (1000 * 60 * 60));
       const minutes = Math.floor((remaining % (1000 * 60 * 60)) / (1000 * 60));
-      setSessionTimeRemaining(`${hours}h ${minutes}m`);
+      const timeString = `${hours}h ${minutes}m`;
+      setSessionTimeRemaining(timeString);
 
       // Warn when session is about to expire
       if (remaining <= 15 * 60 * 1000 && remaining > 14 * 60 * 1000) { // 15 minutes
@@ -147,7 +151,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
         <div className="flex items-center gap-2 text-xs text-muted-foreground">
           <Clock className="h-3 w-3" />
-          <span>Session expires in {sessionTimeRemaining}</span>
+          <span>Session expires in {sessionTimeRemaining || 'N/A'}</span>
         </div>
 
         <Separator />

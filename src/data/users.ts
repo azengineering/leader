@@ -212,7 +212,7 @@ export async function getUsers(query?: string): Promise<User[]> {
         leaderAddedCount:leaders!leaders_addedByUserId_fkey(count),
         unreadMessageCount:admin_messages!admin_messages_user_id_fkey(count)
       `)
-      .eq('admin_messages.is_read', false);
+      .eq('admin_messages.isRead', false);
 
     if (query) {
       // Handle UUID vs string search properly
@@ -221,7 +221,7 @@ export async function getUsers(query?: string): Promise<User[]> {
       if (isUUID) {
         usersQuery = usersQuery.eq('id', query);
       } else {
-        usersQuery = usersQuery.or(`name.ilike.%${query}%,email.ilike.%${query}%`);
+        usersQuery = usersQuery.or(`name.ilike.%${query}%`);
       }
     }
 

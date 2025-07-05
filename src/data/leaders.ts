@@ -270,33 +270,59 @@ export async function getRatingCount(filters?: { startDate?: string, endDate?: s
 
 // --- Admin Functions ---
 export async function getLeadersForAdminPanel(filters: { dateFrom?: string; dateTo?: string; state?: string; constituency?: string; candidateName?: string; }): Promise<Leader[]> {
-  let query = supabaseAdmin
-    .from('leaders')
-    .select(`
-          *,
-          userName:profiles!leaders_addedByUserId_fkey(name),
-          ratings!ratings_leaderId_fkey(rating)
-        `)
-    .order('createdAt', { ascending: false });
+  try {
+    let query = supabaseAdmin
+      .from('leaders')
+      .select(`
+            *,
+            userName:users!leaders_addedByUserId_fkey(name),
+            ratings!ratings_leaderId_fkey(rating)
+          `)
+      .order('createdAt', { ascending: false });
 
-  if (filters.dateFrom) query = query.gte('createdAt', filters.dateFrom);
-  if (filters.dateTo) query = query.lte('createdAt', filters.dateTo);
-  if (filters.state) query = query.eq('location->>state', filters.state);
-  if (filters.constituency) query = query.ilike('constituency', `%${filters.constituency}%`);
-  if (filters.candidateName) query = query.ilike('name', `%${filters.candidateName}%`);
+    if (filters.dateFrom) {
+      const fromDate = new Date(filters.dateFrom);
+      if (!isNaN(fromDate.getTime())) {
+        query = query.gte('createdAt', filters.dateFrom);
+      }
+    }
 
-  const { data, error } = await query;
+    if (filters.dateTo) {
+      const toDate = new Date(filters.dateTo);
+      if (!isNaN(toDate.getTime())) {
+        query = query.lte('createdAt', filters.dateTo);
+      }
+    }
 
-  if (error) {
-    console.error("Error fetching leaders for admin:", error);
-    return [];
+    if (filters.state && filters.state !== 'all-states') {
+      query = query.eq('location->>state', filters.state);
+    }
+
+    if (filters.constituency) {
+      query = query.ilike('constituency', `%${filters.constituency}%`);
+    }
+
+    if (filters.candidateName) {
+      query = query.ilike('name', `%${filters.candidateName}%`);
+    }
+
+    const { data, error } = await query;
+
+    if (error) {
+      console.error("Error fetching leaders for admin:", error);
+      throw error;
+    }
+
+    return (data || []).map(leader => ({
+        ...leader,
+        userName: (leader.userName as any)?.name ?? 'Admin/System',
+        previousElections: Array.isArray(leader.previousElections) ? leader.previousElections : []
+    }));
+
+  } catch (error) {
+    console.error("Error in getLeadersForAdminPanel:", error);
+    throw new Error('Failed to fetch leaders data');
   }
-
-  return data.map(leader => ({
-      ...leader,
-      userName: (leader.userName as any)?.name ?? 'Admin/System',
-      previousElections: leader.previousElections || []
-  }));
 }
 
 export async function approveLeader(leaderId: string): Promise<void> {

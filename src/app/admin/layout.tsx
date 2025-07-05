@@ -1,4 +1,3 @@
-
 'use client';
 
 import Link from 'next/link';
@@ -12,12 +11,13 @@ import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { checkAdminAuth, adminLogout, type AdminSession } from '@/lib/adminAuth';
 import { useToast } from '@/hooks/use-toast';
+import { ErrorBoundary } from '@/components/ErrorBoundary';
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
   const { toast } = useToast();
-  
+
   const [isClient, setIsClient] = useState(false);
   const [adminSession, setAdminSession] = useState<AdminSession | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -34,12 +34,12 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     const checkAuth = async () => {
       try {
         const session = await checkAdminAuth();
-        
+
         if (!session && pathname !== '/admin/login') {
           router.push('/admin/login');
           return;
         }
-        
+
         setAdminSession(session);
       } catch (error) {
         console.error('Auth check error:', error);
@@ -107,21 +107,6 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     { href: '/admin/tools', label: 'Admin Tools', icon: Wrench },
   ];
 
-  // Don't render anything while checking authentication
-  if (!isClient || isLoading) {
-    return null;
-  }
-
-  // Allow login page to render without authentication
-  if (pathname === '/admin/login') {
-    return <>{children}</>;
-  }
-
-  // Redirect to login if not authenticated
-  if (!adminSession) {
-    return null;
-  }
-
   const NavLinks = () => (
     <>
       {navItems.map(item => (
@@ -154,14 +139,14 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           {adminSession.user.role === 'super_admin' ? 'Super Admin' : 'Admin'}
         </Badge>
       </div>
-      
+
       <div className="flex items-center gap-2 text-xs text-muted-foreground">
         <Clock className="h-3 w-3" />
         <span>Session expires in {sessionTimeRemaining}</span>
       </div>
-      
+
       <Separator />
-      
+
       <Button
         onClick={handleLogout}
         variant="ghost"
@@ -174,90 +159,92 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   );
 
   return (
-    <div className="grid min-h-screen w-full grid-cols-1 lg:grid-cols-[280px_1fr]">
-      {/* Desktop Sidebar */}
-      <div className="hidden border-r bg-background lg:block">
-        <div className="flex h-full max-h-screen flex-col gap-2">
-          {/* Header */}
-          <div className="flex h-14 items-center border-b px-4 lg:h-[60px] lg:px-6">
-            <Link href="/" className="flex items-center gap-2 font-semibold">
-              <Scale className="h-6 w-6 text-primary" />
-              <span>PolitiRate Admin</span>
-            </Link>
-          </div>
-          
-          {/* Navigation */}
-          <div className="flex-1 overflow-auto">
-            <nav className="grid items-start px-2 text-sm font-medium lg:px-4 gap-1">
-              <NavLinks />
-            </nav>
-          </div>
-          
-          {/* User Info */}
-          <div className="border-t p-4">
-            <UserInfo />
-          </div>
-        </div>
-      </div>
-
-      {/* Main Content */}
-      <div className="flex flex-col flex-1">
-        {/* Mobile Header */}
-        <header className="flex h-14 items-center gap-4 border-b bg-background px-4 lg:hidden">
-          <Sheet>
-            <SheetTrigger asChild>
-              <Button size="icon" variant="outline">
-                <Menu className="h-5 w-5" />
-                <span className="sr-only">Toggle Menu</span>
-              </Button>
-            </SheetTrigger>
-            <SheetContent side="left" className="flex flex-col">
-              <SheetTitle className="sr-only">Admin Menu</SheetTitle>
-              
-              {/* Mobile Header */}
-              <div className="flex items-center gap-2 font-semibold mb-4">
+    <ErrorBoundary>
+      <div className="grid min-h-screen w-full grid-cols-1 lg:grid-cols-[280px_1fr]">
+        {/* Desktop Sidebar */}
+        <div className="hidden border-r bg-background lg:block">
+          <div className="flex h-full max-h-screen flex-col gap-2">
+            {/* Header */}
+            <div className="flex h-14 items-center border-b px-4 lg:h-[60px] lg:px-6">
+              <Link href="/" className="flex items-center gap-2 font-semibold">
                 <Scale className="h-6 w-6 text-primary" />
                 <span>PolitiRate Admin</span>
-              </div>
-              
-              {/* Mobile Navigation */}
-              <nav className="grid gap-2 text-base font-medium flex-1">
-                {navItems.map(item => (
-                  <SheetClose asChild key={item.href}>
-                    <Link
-                      href={item.href}
-                      className={cn(
-                        "flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-all hover:text-primary",
-                        pathname.startsWith(item.href) && (item.href !== '/admin' || pathname === item.href) ? "bg-secondary text-primary" : ""
-                      )}
-                    >
-                      <item.icon className="h-4 w-4" />
-                      {item.label}
-                    </Link>
-                  </SheetClose>
-                ))}
-              </nav>
-              
-              {/* Mobile User Info */}
-              <div className="border-t pt-4">
-                <UserInfo />
-              </div>
-            </SheetContent>
-          </Sheet>
-          
-          <div className="flex-1" />
-          
-          {/* Mobile user badge */}
-          <Badge variant={adminSession.user.role === 'super_admin' ? 'default' : 'secondary'}>
-            {adminSession.user.role === 'super_admin' ? 'Super Admin' : 'Admin'}
-          </Badge>
-        </header>
+              </Link>
+            </div>
 
-        {/* Page Content */}
-        <main className="flex-1 overflow-auto p-4 lg:p-6">
-          {children}
-        </main>
+            {/* Navigation */}
+            <div className="flex-1 overflow-auto">
+              <nav className="grid items-start px-2 text-sm font-medium lg:px-4 gap-1">
+                <NavLinks />
+              </nav>
+            </div>
+
+            {/* User Info */}
+            <div className="border-t p-4">
+              <UserInfo />
+            </div>
+          </div>
+        </div>
+
+        {/* Main Content */}
+        <div className="flex flex-col flex-1">
+          {/* Mobile Header */}
+          <header className="flex h-14 items-center gap-4 border-b bg-background px-4 lg:hidden">
+            <Sheet>
+              <SheetTrigger asChild>
+                <Button size="icon" variant="outline">
+                  <Menu className="h-5 w-5" />
+                  <span className="sr-only">Toggle Menu</span>
+                </Button>
+              </SheetTrigger>
+              <SheetContent side="left" className="flex flex-col">
+                <SheetTitle className="sr-only">Admin Menu</SheetTitle>
+
+                {/* Mobile Header */}
+                <div className="flex items-center gap-2 font-semibold mb-4">
+                  <Scale className="h-6 w-6 text-primary" />
+                  <span>PolitiRate Admin</span>
+                </div>
+
+                {/* Mobile Navigation */}
+                <nav className="grid gap-2 text-base font-medium flex-1">
+                  {navItems.map(item => (
+                    <SheetClose asChild key={item.href}>
+                      <Link
+                        href={item.href}
+                        className={cn(
+                          "flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-all hover:text-primary",
+                          pathname.startsWith(item.href) && (item.href !== '/admin' || pathname === item.href) ? "bg-secondary text-primary" : ""
+                        )}
+                      >
+                        <item.icon className="h-4 w-4" />
+                        {item.label}
+                      </Link>
+                    </SheetClose>
+                  ))}
+                </nav>
+
+                {/* Mobile User Info */}
+                <div className="border-t pt-4">
+                  <UserInfo />
+                </div>
+              </SheetContent>
+            </Sheet>
+
+            <div className="flex-1" />
+
+            {/* Mobile user badge */}
+            <Badge variant={adminSession.user.role === 'super_admin' ? 'default' : 'secondary'}>
+              {adminSession.user.role === 'super_admin' ? 'Super Admin' : 'Admin'}
+            </Badge>
+          </header>
+
+          {/* Page Content */}
+          <main className="flex-1 overflow-auto p-4 lg:p-6">
+            {children}
+          </main>
+        </div>
       </div>
-    </div>
+    </ErrorBoundary>
   );
 }

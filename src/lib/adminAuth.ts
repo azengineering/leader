@@ -79,8 +79,9 @@ export async function checkAdminAuth(): Promise<AdminSession | null> {
 
     const session: AdminSession = JSON.parse(storedSession);
 
-    // Check if session is expired
-    if (Date.now() > session.expiresAt) {
+    // Add expiration buffer
+    const EXPIRATION_BUFFER = 5 * 60 * 1000; // 5 minutes
+    if (Date.now() > session.expiresAt - EXPIRATION_BUFFER) {
       await adminLogout();
       return null;
     }
@@ -92,14 +93,14 @@ export async function checkAdminAuth(): Promise<AdminSession | null> {
       return null;
     }
 
-    // Verify admin role is still valid
+    // Verify admin role is still valid with additional checks
     const { data: userProfile } = await supabase
       .from('users')
-      .select('role')
+      .select('role, isBlocked')
       .eq('id', session.user.id)
       .single();
 
-    if (!userProfile || !['admin', 'super_admin'].includes(userProfile.role)) {
+    if (!userProfile || userProfile.isBlocked || !['admin', 'super_admin'].includes(userProfile.role)) {
       await adminLogout();
       return null;
     }
@@ -113,7 +114,7 @@ export async function checkAdminAuth(): Promise<AdminSession | null> {
 
     return session;
   } catch (error) {
-    console.error('Error checking admin auth:', error);
+    console.error('Admin auth check failed:', error);
     await adminLogout();
     return null;
   }

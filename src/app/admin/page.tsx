@@ -98,11 +98,7 @@ export default function AdminDashboard() {
   }, [toast]);
   
   const handleFilter = async () => {
-    if (!date?.from && !date?.to && selectedState === 'all-states' && !constituency.trim()) {
-        handleReset();
-        return;
-    }
-
+    // Always show filtered results when filter button is clicked, even if no filters are applied
     try {
       setIsFilteredLoading(true);
       setFilteredStats(null);
@@ -134,16 +130,24 @@ export default function AdminDashboard() {
 
       console.log('Filtered stats:', { userCount, leaderCount, ratingCount });
       
+      // Always set filtered stats, ensuring 0 values are properly displayed
       setFilteredStats({ 
-        userCount: userCount || 0, 
-        leaderCount: leaderCount || 0, 
-        ratingCount: ratingCount || 0 
+        userCount: Number(userCount) || 0, 
+        leaderCount: Number(leaderCount) || 0, 
+        ratingCount: Number(ratingCount) || 0 
       });
       
     } catch (error) {
       console.error('Filter error:', error);
       const errorMessage = error instanceof Error ? error.message : 'Failed to apply filters';
       setFilterError(errorMessage);
+      
+      // Set filtered stats to 0 when there's an error
+      setFilteredStats({ 
+        userCount: 0, 
+        leaderCount: 0, 
+        ratingCount: 0 
+      });
       
       toast({
         variant: 'destructive',
@@ -221,15 +225,18 @@ export default function AdminDashboard() {
           </Alert>
         )}
         
-        <Card>
+        <Card className="shadow-lg border-2 border-primary/10">
             <CardHeader>
-                <CardTitle>Filter Statistics</CardTitle>
-                <CardDescription>Select filters to view data for a specific period, location, or constituency.</CardDescription>
+                <CardTitle className="font-headline text-2xl">Filter Statistics</CardTitle>
+                <CardDescription>
+                    Apply filters to view statistics for specific date ranges, states, or constituencies. 
+                    Results will show filtered data counts (0 if no data matches the criteria).
+                </CardDescription>
             </CardHeader>
-            <CardContent>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 items-end">
+            <CardContent className="space-y-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4 items-end">
                     <div className="grid gap-2 lg:col-span-2">
-                        <Label>Date Range</Label>
+                        <Label className="text-sm font-medium">Date Range</Label>
                         <Popover>
                             <PopoverTrigger asChild>
                             <Button
@@ -269,10 +276,10 @@ export default function AdminDashboard() {
                     </div>
 
                     <div className="grid gap-2">
-                        <Label htmlFor="state-filter">State</Label>
+                        <Label htmlFor="state-filter" className="text-sm font-medium">State</Label>
                         <Select value={selectedState} onValueChange={setSelectedState}>
                             <SelectTrigger id="state-filter" className="bg-background">
-                            <SelectValue placeholder="All States" />
+                            <SelectValue placeholder="Select State" />
                             </SelectTrigger>
                             <SelectContent>
                                 <SelectItem value="all-states">All States</SelectItem>
@@ -284,12 +291,12 @@ export default function AdminDashboard() {
                     </div>
 
                     <div className="grid gap-2">
-                        <Label htmlFor="constituency-filter">Constituency</Label>
+                        <Label htmlFor="constituency-filter" className="text-sm font-medium">Constituency</Label>
                         <Input 
                             id="constituency-filter"
                             value={constituency}
                             onChange={(e) => setConstituency(e.target.value)}
-                            placeholder="Constituency name"
+                            placeholder="Enter constituency name"
                             className="bg-background"
                         />
                     </div>
@@ -297,13 +304,38 @@ export default function AdminDashboard() {
                     <div className="flex gap-2">
                         <Button onClick={handleFilter} disabled={isFilteredLoading} className="w-full">
                             {isFilteredLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                            Filter
+                            Apply Filter
                         </Button>
-                        <Button onClick={handleReset} variant="outline" disabled={isFilteredLoading} size="icon">
+                        <Button onClick={handleReset} variant="outline" disabled={isFilteredLoading} size="icon" title="Reset Filters">
                             <RotateCcw className="h-4 w-4" />
                         </Button>
                     </div>
                 </div>
+                
+                {/* Filter Summary */}
+                {(date?.from || date?.to || selectedState !== 'all-states' || constituency.trim()) && (
+                    <div className="bg-muted/50 rounded-lg p-4 border">
+                        <h4 className="text-sm font-medium mb-2">Active Filters:</h4>
+                        <div className="flex flex-wrap gap-2">
+                            {date?.from && (
+                                <div className="inline-flex items-center gap-1 px-2 py-1 bg-primary/10 text-primary rounded-md text-xs">
+                                    <CalendarIcon className="h-3 w-3" />
+                                    {date.to ? `${format(date.from, "MMM dd")} - ${format(date.to, "MMM dd, yyyy")}` : format(date.from, "MMM dd, yyyy")}
+                                </div>
+                            )}
+                            {selectedState !== 'all-states' && (
+                                <div className="inline-flex items-center gap-1 px-2 py-1 bg-green-100 text-green-700 rounded-md text-xs">
+                                    State: {selectedState}
+                                </div>
+                            )}
+                            {constituency.trim() && (
+                                <div className="inline-flex items-center gap-1 px-2 py-1 bg-blue-100 text-blue-700 rounded-md text-xs">
+                                    Constituency: {constituency}
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                )}
             </CardContent>
         </Card>
 
@@ -327,9 +359,19 @@ export default function AdminDashboard() {
         
         {(isFilteredLoading || filteredStats || filterError) && (
             <div className="space-y-4">
-                <h2 className="text-2xl font-semibold font-headline">
-                    Filtered Results
-                </h2>
+                <div className="flex items-center justify-between">
+                    <h2 className="text-2xl font-semibold font-headline">
+                        Filtered Results
+                    </h2>
+                    {filteredStats && !isFilteredLoading && (
+                        <div className="text-sm text-muted-foreground">
+                            {filteredStats.userCount + filteredStats.leaderCount + filteredStats.ratingCount === 0 
+                                ? "No data found matching the selected filters" 
+                                : `Found ${filteredStats.userCount + filteredStats.leaderCount + filteredStats.ratingCount} total records`
+                            }
+                        </div>
+                    )}
+                </div>
                 
                 {filterError && (
                   <Alert variant="destructive">
@@ -347,7 +389,7 @@ export default function AdminDashboard() {
                     {statCardsData.map(stat => (
                         <StatCard 
                             key={stat.title}
-                            title={`New ${stat.title}`}
+                            title={`Filtered ${stat.title}`}
                             value={filteredStats?.[stat.key] ?? 0}
                             icon={stat.icon}
                             color={stat.color}
@@ -355,6 +397,20 @@ export default function AdminDashboard() {
                         />
                     ))}
                 </div>
+                
+                {filteredStats && !isFilteredLoading && (
+                    <div className="bg-muted/30 rounded-lg p-4 border">
+                        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                            <AlertCircle className="h-4 w-4" />
+                            <span>
+                                {filteredStats.userCount + filteredStats.leaderCount + filteredStats.ratingCount === 0
+                                    ? "No records match your filter criteria. Try adjusting your filters or check if data exists for the selected period/location."
+                                    : "These results are based on your applied filters. Remove filters to see overall statistics."
+                                }
+                            </span>
+                        </div>
+                    </div>
+                )}
             </div>
         )}
 

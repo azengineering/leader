@@ -1,4 +1,3 @@
-
 -- =============================================
 -- 1. ENUMERATED TYPES
 -- =============================================
@@ -207,7 +206,7 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 CREATE TRIGGER on_rating_change
   AFTER INSERT OR UPDATE OR DELETE ON public.ratings
   FOR EACH ROW EXECUTE PROCEDURE public.update_leader_rating();
-  
+
 -- RPC for submitting a new rating
 CREATE OR REPLACE FUNCTION public.handle_new_rating(p_leader_id uuid, p_user_id uuid, p_rating int, p_comment text, p_social_behaviour text)
 RETURNS void AS $$
@@ -294,7 +293,7 @@ END;
 $$ LANGUAGE plpgsql;
 
 -- RPC to get poll list for admin
-CREATE OR REPLACE FUNCTION get_admin_polls()
+CREATE OR REPLACE FUNCTION public.get_admin_polls()
 RETURNS TABLE (
     id uuid,
     title text,
@@ -312,12 +311,12 @@ BEGIN
         p.is_active,
         p.active_until,
         p.created_at,
-        (SELECT count(*) FROM poll_responses pr WHERE pr.poll_id = p.id) as response_count,
-        EXISTS (SELECT 1 FROM notifications n WHERE n.link = '/polls/' || p.id::text) as is_promoted
-    FROM polls p
+        (SELECT COUNT(*) FROM public.poll_responses pr WHERE pr.poll_id = p.id) as response_count,
+        EXISTS (SELECT 1 FROM public.notifications n WHERE n.link = '/polls/' || p.id::text) as is_promoted
+    FROM public.polls p
     ORDER BY p.created_at DESC;
 END;
-$$ LANGUAGE plpgsql;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
 
 -- RPC to get poll list for a user
 CREATE OR REPLACE FUNCTION get_active_polls_for_user(p_user_id uuid)
@@ -423,7 +422,7 @@ DECLARE
 BEGIN
     -- Record the response to prevent re-voting
     INSERT INTO poll_responses (poll_id, user_id, answers) VALUES (p_poll_id, p_user_id, p_answers);
-    
+
     -- Increment vote counts for each option
     FOR rec IN SELECT (value->>'optionId')::uuid as option_id FROM jsonb_array_elements(p_answers)
     LOOP

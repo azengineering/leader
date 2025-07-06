@@ -559,7 +559,7 @@ export async function getPollResults(pollId: string): Promise<PollResult | null>
         users!inner(
           gender,
           age,
-          constituency,
+          mpConstituency,
           state
         )
       `)

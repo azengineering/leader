@@ -41,7 +41,7 @@ export default function MaintenancePage() {
             setSettings(fetchedSettings);
             
             // Populate form state from fetched settings
-            setIsActive(fetchedSettings.maintenance_active === 'true');
+            setIsActive(fetchedSettings.maintenance_active === true);
             setMessage(fetchedSettings.maintenance_message || 'The site is currently down for maintenance. Please check back later.');
             
             const start = fetchedSettings.maintenance_start ? parseISO(fetchedSettings.maintenance_start) : null;
@@ -82,7 +82,7 @@ export default function MaintenancePage() {
             }
 
             const newSettings = {
-                maintenance_active: String(isActive),
+                maintenance_active: isActive,
                 maintenance_start: startDateTime || '',
                 maintenance_end: endDateTime || '',
                 maintenance_message: message,
@@ -108,7 +108,7 @@ export default function MaintenancePage() {
     const handleDisableNow = async () => {
         setIsSaving(true);
         try {
-            await updateSiteSettings({ maintenance_active: 'false' });
+            await updateSiteSettings({ maintenance_active: false });
             setIsActive(false);
             toast({
                 title: 'Maintenance Mode Disabled',

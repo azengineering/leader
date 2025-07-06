@@ -1,4 +1,3 @@
-
 'use server';
 
 import { supabase } from '@/lib/db';
@@ -56,7 +55,7 @@ export async function getSiteSettings(): Promise<SiteSettings> {
         enable_user_registration: true,
         enable_public_polls: true,
         max_ratings_per_user: 100,
-        updatedAt: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
       };
     }
 
@@ -122,6 +121,7 @@ export async function initializeSiteSettings(): Promise<void> {
         enable_user_registration: true,
         enable_public_polls: true,
         max_ratings_per_user: 100,
+        updated_at: new Date().toISOString(),
       });
     }
   } catch (error) {
@@ -129,3 +129,4 @@ export async function initializeSiteSettings(): Promise<void> {
     throw new Error('Failed to initialize site settings');
   }
 }
+```

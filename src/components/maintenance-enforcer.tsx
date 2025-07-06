@@ -20,7 +20,7 @@ export default function MaintenanceEnforcer() {
       try {
         const settings = await getSiteSettings();
         
-        const maintenanceActive = settings.maintenance_active === 'true';
+        const maintenanceActive = settings.maintenance_active === true;
         if (!maintenanceActive) {
             return;
         }

@@ -1,0 +1,26 @@
+Error: ./src/app/polls/page.tsx:8:1
+Export [32mgetActivePollsForUser[39m doesn't exist in target module
+[0m [90m  6 |[39m [36mimport[39m { formatDistanceToNow[33m,[39m format } [36mfrom[39m [32m'date-fns'[39m[33m;[39m[0m
+[0m [90m  7 |[39m [36mimport[39m { useAuth } [36mfrom[39m [32m'@/context/auth-context'[39m[33m;[39m[0m
+[0m[31m[1m>[22m[39m[90m  8 |[39m [36mimport[39m { getActivePollsForUser } [36mfrom[39m [32m'@/data/polls'[39m[33m;[39m[0m
+[0m [90m    |[39m [31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[0m
+[0m [90m  9 |[39m [36mimport[39m type { [33mPollListItem[39m } [36mfrom[39m [32m'@/data/polls'[39m[33m;[39m[0m
+[0m [90m 10 |[39m [36mimport[39m [33mHeader[39m [36mfrom[39m [32m'@/components/header'[39m[33m;[39m[0m
+[0m [90m 11 |[39m [36mimport[39m [33mFooter[39m [36mfrom[39m [32m'@/components/footer'[39m[33m;[39m[0m
+
+The export [32mgetActivePollsForUser[39m was not found in module [1m[31m[project]/src/data/polls.ts [app-client] (ecmascript) <exports>[39m[22m.
+Did you mean to import [32mcreatePoll[39m?
+All exports of the module are statically known (It doesn't have dynamic exports). So it's known statically that the requested export doesn't exist.
+    at BuildError (https://9a6859b6-e45f-4b48-83de-56630957b05b-00-38zl9hxysn8vy.pike.replit.dev/_next/static/chunks/node_modules_next_dist_client_8f19e6fb._.js:11144:41)
+    at react-stack-bottom-frame (https://9a6859b6-e45f-4b48-83de-56630957b05b-00-38zl9hxysn8vy.pike.replit.dev/_next/static/chunks/node_modules_next_dist_compiled_2ce9398a._.js:14911:24)
+    at renderWithHooksAgain (https://9a6859b6-e45f-4b48-83de-56630957b05b-00-38zl9hxysn8vy.pike.replit.dev/_next/static/chunks/node_modules_next_dist_compiled_2ce9398a._.js:6256:24)
+    at renderWithHooks (https://9a6859b6-e45f-4b48-83de-56630957b05b-00-38zl9hxysn8vy.pike.replit.dev/_next/static/chunks/node_modules_next_dist_compiled_2ce9398a._.js:6207:28)
+    at updateFunctionComponent (https://9a6859b6-e45f-4b48-83de-56630957b05b-00-38zl9hxysn8vy.pike.replit.dev/_next/static/chunks/node_modules_next_dist_compiled_2ce9398a._.js:7543:21)
+    at beginWork (https://9a6859b6-e45f-4b48-83de-56630957b05b-00-38zl9hxysn8vy.pike.replit.dev/_next/static/chunks/node_modules_next_dist_compiled_2ce9398a._.js:8142:24)
+    at runWithFiberInDEV (https://9a6859b6-e45f-4b48-83de-56630957b05b-00-38zl9hxysn8vy.pike.replit.dev/_next/static/chunks/node_modules_next_dist_compiled_2ce9398a._.js:3073:74)
+    at performUnitOfWork (https://9a6859b6-e45f-4b48-83de-56630957b05b-00-38zl9hxysn8vy.pike.replit.dev/_next/static/chunks/node_modules_next_dist_compiled_2ce9398a._.js:10243:97)
+    at workLoopConcurrentByScheduler (https://9a6859b6-e45f-4b48-83de-56630957b05b-00-38zl9hxysn8vy.pike.replit.dev/_next/static/chunks/node_modules_next_dist_compiled_2ce9398a._.js:10239:58)
+    at renderRootConcurrent (https://9a6859b6-e45f-4b48-83de-56630957b05b-00-38zl9hxysn8vy.pike.replit.dev/_next/static/chunks/node_modules_next_dist_compiled_2ce9398a._.js:10221:71)
+    at performWorkOnRoot (https://9a6859b6-e45f-4b48-83de-56630957b05b-00-38zl9hxysn8vy.pike.replit.dev/_next/static/chunks/node_modules_next_dist_compiled_2ce9398a._.js:9853:176)
+    at performWorkOnRootViaSchedulerTask (https://9a6859b6-e45f-4b48-83de-56630957b05b-00-38zl9hxysn8vy.pike.replit.dev/_next/static/chunks/node_modules_next_dist_compiled_2ce9398a._.js:10826:9)
+    at MessagePort.performWorkUntilDeadline (https://9a6859b6-e45f-4b48-83de-56630957b05b-00-38zl9hxysn8vy.pike.replit.dev/_next/static/chunks/node_modules_next_dist_compiled_2ce9398a._.js:1982:64)

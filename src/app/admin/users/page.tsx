@@ -218,8 +218,9 @@ export default function AdminUsersPage() {
     
     const handleSelectUser = useCallback((user: UserWithCounts, tab: SelectedTab = 'profile') => {
         if (selectedUser?.id === user.id) {
-          // If already selected, just switch tab
+          // If already selected, just switch tab and clear leader details
           setSelectedTab(tab);
+          setSelectedLeaderForView(null);
         } else {
           // If new user selected, reset everything
           setSelectedUser(user);
@@ -228,8 +229,12 @@ export default function AdminUsersPage() {
           setUserAddedLeaders([]);
           setUserAdminMessages([]);
           setSelectedLeaderForView(null);
+          
+          // Clear URL parameters for clean slate
+          const newParams = new URLSearchParams();
+          router.replace(`${pathname}`);
         }
-    }, [selectedUser?.id]);
+    }, [selectedUser?.id, pathname, router]);
 
     const fetchUsers = useCallback(async (query?: string) => {
         setIsLoading(true);
@@ -249,7 +254,8 @@ export default function AdminUsersPage() {
                 setSearchTerm(userIdFromQuery);
                 const fetchedUsers = await fetchUsers(userIdFromQuery);
                 if (fetchedUsers.length > 0) {
-                    handleSelectUser(fetchedUsers[0], 'leaders');
+                    const tabFromQuery = searchParams.get('tab') || 'profile';
+                    handleSelectUser(fetchedUsers[0], tabFromQuery as SelectedTab);
                 }
                 setHasSearched(true);
                 setIsLoading(false);
@@ -321,6 +327,14 @@ export default function AdminUsersPage() {
         setHasSearched(false);
         setSelectedUser(null);
         setSelectedLeaderForView(null);
+        setUserActivities([]);
+        setUserAddedLeaders([]);
+        setUserAdminMessages([]);
+        setSelectedTab('profile');
+        
+        // Clear URL parameters
+        const newParams = new URLSearchParams();
+        router.replace(`${pathname}`);
     };
 
     const fetchUserRatings = useCallback(async (userId: string) => {
@@ -346,9 +360,22 @@ export default function AdminUsersPage() {
     
     useEffect(() => {
         if (selectedUser) {
-            if (selectedTab === 'ratings') fetchUserRatings(selectedUser.id);
-            if (selectedTab === 'leaders') fetchUserLeaders(selectedUser.id);
-            if (selectedTab === 'messages') fetchUserAdminMessages(selectedUser.id);
+            // Clear previous data when switching tabs
+            if (selectedTab === 'ratings') {
+                setUserAddedLeaders([]);
+                setUserAdminMessages([]);
+                fetchUserRatings(selectedUser.id);
+            }
+            if (selectedTab === 'leaders') {
+                setUserActivities([]);
+                setUserAdminMessages([]);
+                fetchUserLeaders(selectedUser.id);
+            }
+            if (selectedTab === 'messages') {
+                setUserActivities([]);
+                setUserAddedLeaders([]);
+                fetchUserAdminMessages(selectedUser.id);
+            }
         }
     }, [selectedUser, selectedTab, fetchUserRatings, fetchUserLeaders, fetchUserAdminMessages]);
 
@@ -668,13 +695,19 @@ export default function AdminUsersPage() {
                                                 </TableCell>
                                                 <TableCell 
                                                     className="text-center font-medium text-primary hover:underline cursor-pointer"
-                                                    onClick={() => handleSelectUser(user, 'ratings')}
+                                                    onClick={() => {
+                                                        handleSelectUser(user, 'ratings');
+                                                        setSelectedLeaderForView(null); // Clear any selected leader details
+                                                    }}
                                                 >
                                                     {user.ratingCount}
                                                 </TableCell>
                                                 <TableCell 
                                                     className="text-center font-medium text-primary hover:underline cursor-pointer"
-                                                    onClick={() => handleSelectUser(user, 'leaders')}
+                                                    onClick={() => {
+                                                        handleSelectUser(user, 'leaders');
+                                                        setSelectedLeaderForView(null); // Clear any selected leader details
+                                                    }}
                                                 >
                                                     {user.leaderAddedCount}
                                                 </TableCell>
@@ -762,12 +795,26 @@ export default function AdminUsersPage() {
                                         {userActivities.length > 0 ? userActivities.map(activity => (
                                             <TableRow key={activity.leaderId}>
                                                 <TableCell>
-                                                    <Link 
-                                                        href={`/admin/users?userId=${selectedUser.id}&leaderId=${activity.leaderId}&action=view`}
-                                                        className="text-primary hover:underline font-medium"
+                                                    <Button 
+                                                        variant="link" 
+                                                        className="p-0 h-auto font-medium text-primary hover:underline"
+                                                        onClick={() => {
+                                                            setSelectedTab('leaders');
+                                                            // Find the leader in the user's added leaders and show details
+                                                            if (userAddedLeaders.length === 0) {
+                                                                // If leaders not loaded yet, load them first
+                                                                fetchUserLeaders(selectedUser.id).then(() => {
+                                                                    const leader = userAddedLeaders.find(l => l.id === activity.leaderId);
+                                                                    if (leader) setSelectedLeaderForView(leader);
+                                                                });
+                                                            } else {
+                                                                const leader = userAddedLeaders.find(l => l.id === activity.leaderId);
+                                                                if (leader) setSelectedLeaderForView(leader);
+                                                            }
+                                                        }}
                                                     >
                                                         {activity.leaderName}
-                                                    </Link>
+                                                    </Button>
                                                 </TableCell>
                                                 <TableCell>
                                                     <div className="flex items-center gap-1">

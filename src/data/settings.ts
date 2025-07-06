@@ -24,7 +24,7 @@ export interface SiteSettings {
   updated_at: string;
 }
 
-export interface PartialSiteSettings {
+export type PartialSiteSettings = {
   [K in keyof Omit<SiteSettings, 'id' | 'updated_at'>]?: SiteSettings[K];
 }
 

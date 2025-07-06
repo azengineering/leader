@@ -129,4 +129,3 @@ export async function initializeSiteSettings(): Promise<void> {
     throw new Error('Failed to initialize site settings');
   }
 }
-```

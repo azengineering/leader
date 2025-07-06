@@ -63,15 +63,22 @@ export async function updateUserProfile(userId: string, profileData: Partial<Omi
   }
 }
 
-export async function getUserCount(filters?: { startDate?: string, endDate?: string, location?: string }): Promise<number> {
+export async function getUserCount(filters?: { startDate?: string, endDate?: string, state?: string, constituency?: string }): Promise<number> {
   try {
     let query = supabaseAdmin.from('users').select('*', { count: 'exact', head: true });
 
-    if (filters?.startDate && filters?.endDate) {
-      query = query.gte('"createdAt"', filters.startDate).lte('"createdAt"', filters.endDate);
+    if (filters?.startDate) {
+      query = query.gte('createdAt', filters.startDate);
     }
-    if (filters?.location) {
-      query = query.ilike('location', `%${filters.location}%`);
+    if (filters?.endDate) {
+      query = query.lte('createdAt', filters.endDate);
+    }
+    if (filters?.state) {
+      query = query.eq('state', filters.state);
+    }
+    if (filters?.constituency) {
+      // Try both mpConstituency and mlaConstituency columns
+      query = query.or(`mpConstituency.ilike.%${filters.constituency}%,mlaConstituency.ilike.%${filters.constituency}%`);
     }
 
     const { count, error } = await query;

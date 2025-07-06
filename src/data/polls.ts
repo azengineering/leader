@@ -83,6 +83,24 @@ export async function getPollsForAdmin(): Promise<PollListItem[]> {
   }
 }
 
+export async function getActivePollsForUser(userId: string | null): Promise<(PollListItem & { user_has_voted: boolean; description: string | null; })[]> {
+  try {
+    const { data, error } = await supabase.rpc('get_active_polls_for_user', {
+      p_user_id: userId
+    });
+
+    if (error) {
+      console.error('Error fetching active polls for user:', error);
+      throw new Error(`Failed to fetch active polls: ${error.message}`);
+    }
+
+    return data || [];
+  } catch (error) {
+    console.error('Error in getActivePollsForUser:', error);
+    throw new Error('Failed to fetch active polls');
+  }
+}
+
 export async function getPollById(pollId: string): Promise<Poll | null> {
   try {
     if (!pollId) {

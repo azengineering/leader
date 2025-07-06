@@ -552,46 +552,75 @@ export async function getPollResults(pollId: string): Promise<PollResult | null>
       throw new Error(`Failed to count poll responses: ${countError.message}`);
     }
 
-    // Get gender distribution
-    const { data: genderData, error: genderError } = await supabaseAdmin
+    // Get demographic data with better error handling
+    const { data: demographicData, error: demoError } = await supabaseAdmin
       .from('poll_responses')
-      .select('users(gender)')
+      .select(`
+        users!inner(
+          gender,
+          age,
+          constituency,
+          state
+        )
+      `)
       .eq('poll_id', pollId);
 
-    if (genderError) {
-      console.error('Error fetching gender distribution:', genderError);
-      throw new Error(`Failed to fetch gender distribution: ${genderError.message}`);
+    if (demoError) {
+      console.error('Error fetching demographic data:', demoError);
+      // Continue with basic gender distribution if detailed demographics fail
     }
 
+    // Process gender distribution
     const genderCounts: { [key: string]: number } = {};
-    genderData?.forEach((response: any) => {
+    demographicData?.forEach((response: any) => {
       const gender = response.users?.gender || 'Not specified';
       genderCounts[gender] = (genderCounts[gender] || 0) + 1;
     });
 
     const genderDistribution = Object.entries(genderCounts).map(([name, value]) => ({
-      name,
+      name: name === 'Not specified' ? 'Unknown' : name,
       value,
     }));
 
-    // Get question results
+    // If no demographic data, create default unknown entry
+    if (genderDistribution.length === 0 && totalResponses && totalResponses > 0) {
+      genderDistribution.push({ name: 'Unknown', value: totalResponses });
+    }
+
+    // Get question results with improved data handling
     const questionResults = [];
     for (const question of poll.questions) {
-      const { data: answerData, error: answerError } = await supabaseAdmin
+      // Get all responses for this question using the answers JSON field
+      const { data: responseData, error: responseError } = await supabaseAdmin
         .from('poll_responses')
-        .select('selected_option_id, poll_options(option_text)')
-        .eq('poll_id', pollId)
-        .eq('question_id', question.id);
+        .select('answers')
+        .eq('poll_id', pollId);
 
-      if (answerError) {
-        console.error('Error fetching question answers:', answerError);
+      if (responseError) {
+        console.error('Error fetching poll responses:', responseError);
         continue;
       }
 
+      // Count answers for this specific question
       const answerCounts: { [key: string]: number } = {};
-      answerData?.forEach((response: any) => {
-        const optionText = response.poll_options?.option_text || 'Unknown';
-        answerCounts[optionText] = (answerCounts[optionText] || 0) + 1;
+      
+      responseData?.forEach((response: any) => {
+        const answers = response.answers || {};
+        const selectedOptionId = answers[question.id];
+        
+        if (selectedOptionId) {
+          // Find the option text from the question's options
+          const selectedOption = question.options.find(opt => opt.id === selectedOptionId);
+          const optionText = selectedOption?.option_text || 'Unknown Option';
+          answerCounts[optionText] = (answerCounts[optionText] || 0) + 1;
+        }
+      });
+
+      // Ensure all options are represented, even with 0 votes
+      question.options.forEach(option => {
+        if (!(option.option_text in answerCounts)) {
+          answerCounts[option.option_text] = 0;
+        }
       });
 
       questionResults.push({

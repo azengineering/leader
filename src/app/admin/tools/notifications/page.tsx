@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -39,6 +38,29 @@ const notificationSchema = z.object({
 });
 
 type NotificationFormData = z.infer<typeof notificationSchema>;
+
+// Function to convert URLs in text to clickable links
+const linkifyText = (text: string) => {
+    const urlRegex = /(https?:\/\/[^\s]+)/g;
+    const parts = text.split(urlRegex);
+
+    return parts.map((part, index) => {
+        if (urlRegex.test(part)) {
+            return (
+                <a
+                    key={index}
+                    href={part}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-blue-600 hover:text-blue-800 underline break-all"
+                >
+                    {part}
+                </a>
+            );
+        }
+        return part;
+    });
+};
 
 export default function AdminNotificationsPage() {
     const [notifications, setNotifications] = useState<SiteNotification[]>([]);
@@ -101,7 +123,7 @@ export default function AdminNotificationsPage() {
             const { dateRange, startTime, endTime } = data;
             const [startHour, startMinute] = startTime.split(':').map(Number);
             const [endHour, endMinute] = endTime.split(':').map(Number);
-            
+
             let startDateTime: string | null = null;
             if (dateRange?.from) {
                 startDateTime = set(dateRange.from, { hours: startHour, minutes: startMinute }).toISOString();
@@ -112,7 +134,7 @@ export default function AdminNotificationsPage() {
             if (endDate) {
                 endDateTime = set(endDate, { hours: endHour, minutes: endMinute }).toISOString();
             }
-            
+
             const payload = {
                 message: data.message,
                 isActive: data.isActive,
@@ -127,7 +149,7 @@ export default function AdminNotificationsPage() {
                 await addNotification(payload);
                 toast({ title: 'Notification Added' });
             }
-            
+
             setIsDialogOpen(false);
             await fetchAllNotifications();
         } catch (error) {
@@ -136,7 +158,7 @@ export default function AdminNotificationsPage() {
             setIsSubmitting(false);
         }
     };
-    
+
     const handleDelete = async (id: string) => {
         await deleteNotification(id);
         toast({ variant: 'destructive', title: 'Notification Deleted' });
@@ -150,7 +172,7 @@ export default function AdminNotificationsPage() {
             </div>
         </div>
     );
-    
+
     const formatDate = (dateString?: string | null) => {
         if (!dateString) return 'N/A';
         return format(parseISO(dateString), 'MMM dd, yyyy, hh:mm a');
@@ -190,7 +212,11 @@ export default function AdminNotificationsPage() {
                             <TableBody>
                                 {notifications.length > 0 ? notifications.map(n => (
                                     <TableRow key={n.id}>
-                                        <TableCell className="max-w-md truncate">{n.message}</TableCell>
+                                        <TableCell className="max-w-md">
+                                            <div className="break-words" title={n.message}>
+                                                {linkifyText(n.message)}
+                                            </div>
+                                        </TableCell>
                                         <TableCell>{formatDate(n.startTime)}</TableCell>
                                         <TableCell>{formatDate(n.endTime)}</TableCell>
                                         <TableCell>

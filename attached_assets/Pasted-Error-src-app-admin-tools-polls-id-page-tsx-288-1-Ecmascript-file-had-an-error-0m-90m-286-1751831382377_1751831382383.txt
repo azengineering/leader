@@ -1,0 +1,24 @@
+Error: ./src/app/admin/tools/polls/[id]/page.tsx:288:1
+Ecmascript file had an error
+[0m [90m 286 |[39m   )[33m;[39m[0m
+[0m [90m 287 |[39m }[0m
+[0m[31m[1m>[22m[39m[90m 288 |[39m [32m'use client'[39m[33m;[39m[0m
+[0m [90m     |[39m [31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[0m
+[0m [90m 289 |[39m[0m
+[0m [90m 290 |[39m [36mimport[39m { useState[33m,[39m useEffect } [36mfrom[39m [32m'react'[39m[33m;[39m[0m
+[0m [90m 291 |[39m [36mimport[39m { useRouter[33m,[39m useParams } [36mfrom[39m [32m'next/navigation'[39m[33m;[39m[0m
+
+The "use client" directive must be placed before other expressions. Move it to the top of the file to resolve this issue.
+    at BuildError (https://3fd03c9f-01c2-4a24-b06a-40d7137bae7a-00-p0s6m9mpqsnl.pike.replit.dev/_next/static/chunks/node_modules_next_dist_client_8f19e6fb._.js:11144:41)
+    at react-stack-bottom-frame (https://3fd03c9f-01c2-4a24-b06a-40d7137bae7a-00-p0s6m9mpqsnl.pike.replit.dev/_next/static/chunks/node_modules_next_dist_compiled_2ce9398a._.js:14911:24)
+    at renderWithHooksAgain (https://3fd03c9f-01c2-4a24-b06a-40d7137bae7a-00-p0s6m9mpqsnl.pike.replit.dev/_next/static/chunks/node_modules_next_dist_compiled_2ce9398a._.js:6256:24)
+    at renderWithHooks (https://3fd03c9f-01c2-4a24-b06a-40d7137bae7a-00-p0s6m9mpqsnl.pike.replit.dev/_next/static/chunks/node_modules_next_dist_compiled_2ce9398a._.js:6207:28)
+    at updateFunctionComponent (https://3fd03c9f-01c2-4a24-b06a-40d7137bae7a-00-p0s6m9mpqsnl.pike.replit.dev/_next/static/chunks/node_modules_next_dist_compiled_2ce9398a._.js:7543:21)
+    at beginWork (https://3fd03c9f-01c2-4a24-b06a-40d7137bae7a-00-p0s6m9mpqsnl.pike.replit.dev/_next/static/chunks/node_modules_next_dist_compiled_2ce9398a._.js:8142:24)
+    at runWithFiberInDEV (https://3fd03c9f-01c2-4a24-b06a-40d7137bae7a-00-p0s6m9mpqsnl.pike.replit.dev/_next/static/chunks/node_modules_next_dist_compiled_2ce9398a._.js:3073:74)
+    at performUnitOfWork (https://3fd03c9f-01c2-4a24-b06a-40d7137bae7a-00-p0s6m9mpqsnl.pike.replit.dev/_next/static/chunks/node_modules_next_dist_compiled_2ce9398a._.js:10243:97)
+    at workLoopSync (https://3fd03c9f-01c2-4a24-b06a-40d7137bae7a-00-p0s6m9mpqsnl.pike.replit.dev/_next/static/chunks/node_modules_next_dist_compiled_2ce9398a._.js:10135:40)
+    at renderRootSync (https://3fd03c9f-01c2-4a24-b06a-40d7137bae7a-00-p0s6m9mpqsnl.pike.replit.dev/_next/static/chunks/node_modules_next_dist_compiled_2ce9398a._.js:10118:13)
+    at performWorkOnRoot (https://3fd03c9f-01c2-4a24-b06a-40d7137bae7a-00-p0s6m9mpqsnl.pike.replit.dev/_next/static/chunks/node_modules_next_dist_compiled_2ce9398a._.js:9853:212)
+    at performWorkOnRootViaSchedulerTask (https://3fd03c9f-01c2-4a24-b06a-40d7137bae7a-00-p0s6m9mpqsnl.pike.replit.dev/_next/static/chunks/node_modules_next_dist_compiled_2ce9398a._.js:10826:9)
+    at MessagePort.performWorkUntilDeadline (https://3fd03c9f-01c2-4a24-b06a-40d7137bae7a-00-p0s6m9mpqsnl.pike.replit.dev/_next/static/chunks/node_modules_next_dist_compiled_2ce9398a._.js:1982:64)

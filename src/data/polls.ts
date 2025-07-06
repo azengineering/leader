@@ -67,6 +67,22 @@ export interface PollResult {
   }[];
 }
 
+export interface PollForParticipation {
+  id: string;
+  title: string;
+  description: string | null;
+  is_active: boolean;
+  active_until: string | null;
+  created_at: string;
+  user_has_voted: boolean;
+  questions: PollQuestion[];
+}
+
+export interface PollAnswer {
+  questionId: string;
+  optionId: string;
+}
+
 export async function getPollsForAdmin(): Promise<PollListItem[]> {
   try {
     const { data, error } = await supabaseAdmin.rpc('get_admin_polls');
@@ -98,6 +114,94 @@ export async function getActivePollsForUser(userId: string | null): Promise<(Pol
   } catch (error) {
     console.error('Error in getActivePollsForUser:', error);
     throw new Error('Failed to fetch active polls');
+  }
+}
+
+export async function getPollForParticipation(pollId: string, userId: string | null): Promise<PollForParticipation | null> {
+  try {
+    if (!pollId) {
+      throw new Error('Poll ID is required');
+    }
+
+    // First check if the poll exists and is active
+    const { data: pollData, error: pollError } = await supabase
+      .from('polls')
+      .select('*')
+      .eq('id', pollId)
+      .eq('is_active', true)
+      .single();
+
+    if (pollError) {
+      if (pollError.code === 'PGRST116') {
+        return null; // Poll not found or not active
+      }
+      console.error('Error fetching poll for participation:', pollError);
+      throw new Error(`Failed to fetch poll: ${pollError.message}`);
+    }
+
+    // Check if poll is still active (not expired)
+    if (pollData.active_until && new Date(pollData.active_until) <= new Date()) {
+      return null; // Poll has expired
+    }
+
+    // Check if user has already voted
+    let userHasVoted = false;
+    if (userId) {
+      const { data: responseData, error: responseError } = await supabase
+        .from('poll_responses')
+        .select('id')
+        .eq('poll_id', pollId)
+        .eq('user_id', userId)
+        .single();
+
+      if (responseError && responseError.code !== 'PGRST116') {
+        console.error('Error checking user vote status:', responseError);
+        throw new Error(`Failed to check vote status: ${responseError.message}`);
+      }
+
+      userHasVoted = !!responseData;
+    }
+
+    // Get poll questions and options
+    const { data: questionsData, error: questionsError } = await supabase
+      .from('poll_questions')
+      .select(`
+        *,
+        poll_options (*)
+      `)
+      .eq('poll_id', pollId)
+      .order('question_order');
+
+    if (questionsError) {
+      console.error('Error fetching poll questions:', questionsError);
+      throw new Error(`Failed to fetch poll questions: ${questionsError.message}`);
+    }
+
+    const questions: PollQuestion[] = (questionsData || []).map(q => ({
+      id: q.id,
+      poll_id: q.poll_id,
+      question_text: q.question_text,
+      question_type: q.question_type,
+      question_order: q.question_order,
+      options: (q.poll_options || []).sort((a: any, b: any) => a.option_order - b.option_order),
+    }));
+
+    return {
+      id: pollData.id,
+      title: pollData.title,
+      description: pollData.description,
+      is_active: pollData.is_active,
+      active_until: pollData.active_until,
+      created_at: pollData.created_at,
+      user_has_voted: userHasVoted,
+      questions,
+    };
+  } catch (error) {
+    console.error('Error in getPollForParticipation:', error);
+    if (error instanceof Error) {
+      throw error;
+    }
+    throw new Error('Failed to fetch poll for participation');
   }
 }
 
@@ -365,6 +469,64 @@ export async function deletePoll(pollId: string): Promise<void> {
       throw error;
     }
     throw new Error('Failed to delete poll');
+  }
+}
+
+export async function submitPollResponse(pollId: string, userId: string, answers: PollAnswer[]): Promise<void> {
+  try {
+    if (!pollId || !userId || !answers || answers.length === 0) {
+      throw new Error('Poll ID, user ID, and answers are required');
+    }
+
+    // Verify poll exists and is active
+    const poll = await getPollForParticipation(pollId, userId);
+    if (!poll) {
+      throw new Error('Poll not found or not active');
+    }
+
+    if (poll.user_has_voted) {
+      throw new Error('You have already voted on this poll');
+    }
+
+    // Validate answers
+    const questionIds = poll.questions.map(q => q.id);
+    const answerQuestionIds = answers.map(a => a.questionId);
+    
+    if (answerQuestionIds.length !== questionIds.length) {
+      throw new Error('All questions must be answered');
+    }
+
+    for (const answer of answers) {
+      if (!questionIds.includes(answer.questionId)) {
+        throw new Error('Invalid question ID in answer');
+      }
+    }
+
+    // Convert answers to the format expected by the database
+    const answersJson = answers.reduce((acc, answer) => {
+      acc[answer.questionId] = answer.optionId;
+      return acc;
+    }, {} as Record<string, string>);
+
+    // Submit response
+    const { error } = await supabase
+      .from('poll_responses')
+      .insert({
+        poll_id: pollId,
+        user_id: userId,
+        answers: answersJson,
+      });
+
+    if (error) {
+      console.error('Error submitting poll response:', error);
+      throw new Error(`Failed to submit poll response: ${error.message}`);
+    }
+  } catch (error) {
+    console.error('Error in submitPollResponse:', error);
+    if (error instanceof Error) {
+      throw error;
+    }
+    throw new Error('Failed to submit poll response');
   }
 }
 

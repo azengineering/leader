@@ -426,21 +426,30 @@ export async function deletePoll(pollId: string): Promise<void> {
       throw new Error(`Failed to delete poll responses: ${responsesError.message}`);
     }
 
-    // Then delete poll_options
-    const { error: optionsError } = await supabaseAdmin
-      .from('poll_options')
-      .delete()
-      .in('question_id', 
-        supabaseAdmin
-          .from('poll_questions')
-          .select('id')
-          .eq('poll_id', pollId)
-      );
+    // Get question IDs first, then delete poll_options
+    const { data: questionIds, error: questionIdsError } = await supabaseAdmin
+      .from('poll_questions')
+      .select('id')
+      .eq('poll_id', pollId);
 
-    if (optionsError) {
-      console.error('Error deleting poll options:', optionsError);
-      throw new Error(`Failed to delete poll options: ${optionsError.message}`);
+    if (questionIdsError) {
+      console.error('Error fetching question IDs:', questionIdsError);
+      throw new Error(`Failed to fetch question IDs: ${questionIdsError.message}`);
     }
+
+    if (questionIds && questionIds.length > 0) {
+      const { error: optionsError } = await supabaseAdmin
+        .from('poll_options')
+        .delete()
+        .in('question_id', questionIds.map(q => q.id));
+
+      if (optionsError) {
+        console.error('Error deleting poll options:', optionsError);
+        throw new Error(`Failed to delete poll options: ${optionsError.message}`);
+      }
+    }
+
+    
 
     // Then delete poll_questions
     const { error: questionsError } = await supabaseAdmin

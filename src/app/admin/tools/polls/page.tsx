@@ -112,6 +112,7 @@ export default function AdminPollsPage() {
                                 <TableRow>
                                     <TableHead>Title</TableHead>
                                     <TableHead>Status</TableHead>
+                                    <TableHead>Target Audience</TableHead>
                                     <TableHead>Active Until</TableHead>
                                     <TableHead>Responses</TableHead>
                                     <TableHead className="text-right">Actions</TableHead>
@@ -126,6 +127,34 @@ export default function AdminPollsPage() {
                                                 {poll.is_active ? <CheckCircle className="h-3 w-3 mr-1"/> : <XCircle className="h-3 w-3 mr-1"/>}
                                                 {poll.is_active ? 'Active' : 'Inactive'}
                                             </Badge>
+                                        </TableCell>
+                                        <TableCell>
+                                            {poll.target_filters ? (
+                                                <div className="space-y-1">
+                                                    {poll.target_filters.states && poll.target_filters.states.length > 0 && (
+                                                        <Badge variant="outline" className="text-xs">
+                                                            {poll.target_filters.states.length} state{poll.target_filters.states.length > 1 ? 's' : ''}
+                                                        </Badge>
+                                                    )}
+                                                    {poll.target_filters.constituencies && poll.target_filters.constituencies.length > 0 && (
+                                                        <Badge variant="outline" className="text-xs">
+                                                            {poll.target_filters.constituencies.length} constituency{poll.target_filters.constituencies.length > 1 ? 's' : ''}
+                                                        </Badge>
+                                                    )}
+                                                    {poll.target_filters.gender && poll.target_filters.gender.length > 0 && (
+                                                        <Badge variant="outline" className="text-xs">
+                                                            {poll.target_filters.gender.join(', ')}
+                                                        </Badge>
+                                                    )}
+                                                    {(poll.target_filters.age_min || poll.target_filters.age_max) && (
+                                                        <Badge variant="outline" className="text-xs">
+                                                            Age: {poll.target_filters.age_min || 18}-{poll.target_filters.age_max || 100}
+                                                        </Badge>
+                                                    )}
+                                                </div>
+                                            ) : (
+                                                <span className="text-muted-foreground text-sm">All users</span>
+                                            )}
                                         </TableCell>
                                         <TableCell>{poll.active_until ? format(new Date(poll.active_until), 'MMM dd, yyyy') : 'No limit'}</TableCell>
                                         <TableCell>{poll.response_count}</TableCell>
@@ -193,7 +222,7 @@ export default function AdminPollsPage() {
                                     </TableRow>
                                 )) : (
                                     <TableRow>
-                                        <TableCell colSpan={5} className="h-24 text-center">No polls created yet.</TableCell>
+                                        <TableCell colSpan={6} className="h-24 text-center">No polls created yet.</TableCell>
                                     </TableRow>
                                 )}
                             </TableBody>

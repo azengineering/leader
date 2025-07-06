@@ -1,3 +1,4 @@
+-- The polls table is updated to include target_filters, and the get_active_polls_for_user function is modified to respect these filters.
 -- =============================================
 -- POLITIRATE PLATFORM - COMPLETE SUPABASE SCHEMA
 -- =============================================
@@ -253,12 +254,12 @@ CREATE TABLE public.polls (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     title text NOT NULL,
     description text,
-    is_active boolean NOT NULL DEFAULT false,
+    is_active boolean NOT NULL DEFAULT true,
     active_until timestamptz,
+    target_filters jsonb DEFAULT NULL,
     created_at timestamptz NOT NULL DEFAULT now(),
     created_by uuid REFERENCES public.users(id) ON DELETE SET NULL,
     updated_at timestamptz NOT NULL DEFAULT now(),
-    updated_by uuid REFERENCES public.users(id) ON DELETE SET NULL,
     min_age integer,
     max_age integer,
     target_states text[] DEFAULT '{}'::text[],
@@ -526,7 +527,7 @@ RETURNS TABLE(
     rating integer,
     comment text,
     "updatedAt" timestamptz,
-    "socialBehaviour" text,
+    "socialBehaviour" character varying,
     category text,
     "helpfulCount" integer,
     "isVerified" boolean
@@ -649,37 +650,76 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
--- Function to get active polls for users
-CREATE OR REPLACE FUNCTION public.get_active_polls_for_user(p_user_id uuid DEFAULT NULL)
+-- Function to get active polls for user
+CREATE OR REPLACE FUNCTION public.get_active_polls_for_user(p_user_id uuid)
 RETURNS TABLE (
     id uuid,
     title text,
-    description text,
     is_active boolean,
     active_until timestamptz,
     created_at timestamptz,
     response_count bigint,
     user_has_voted boolean,
+    description text,
     "requiresLogin" boolean
 ) AS $$
+DECLARE
+    user_state text;
+    user_constituency text;
+    user_gender text;
+    user_age integer;
 BEGIN
+    -- Get user demographics if user is logged in
+    IF p_user_id IS NOT NULL THEN
+        SELECT state, "mpConstituency", gender, age
+        INTO user_state, user_constituency, user_gender, user_age
+        FROM public.users
+        WHERE id = p_user_id;
+    END IF;
+
     RETURN QUERY
     SELECT 
         p.id,
         p.title,
-        p.description,
         p.is_active,
         p.active_until,
         p.created_at,
         (SELECT COUNT(*) FROM public.poll_responses pr WHERE pr.poll_id = p.id) as response_count,
-        CASE
-            WHEN p_user_id IS NULL THEN false
-            ELSE EXISTS (SELECT 1 FROM public.poll_responses pr WHERE pr.poll_id = p.id AND pr.user_id = p_user_id)
-        END as user_has_voted,
+        EXISTS (SELECT 1 FROM public.poll_responses pr WHERE pr.poll_id = p.id AND pr.user_id = p_user_id) as user_has_voted,
+        p.description,
         p."requiresLogin"
     FROM public.polls p
     WHERE p.is_active = true 
         AND (p.active_until IS NULL OR p.active_until > NOW())
+        AND (
+            -- No target filters means show to everyone
+            p.target_filters IS NULL
+            OR
+            -- User not logged in and poll has filters - don't show
+            (p_user_id IS NULL AND p.target_filters IS NOT NULL)
+            OR
+            -- User logged in - check filters
+            (p_user_id IS NOT NULL AND (
+                -- No filters set
+                p.target_filters IS NULL
+                OR
+                -- Check state filter
+                (p.target_filters->>'states' IS NULL 
+                 OR p.target_filters->'states' @> to_jsonb(user_state))
+                AND
+                -- Check constituency filter
+                (p.target_filters->>'constituencies' IS NULL 
+                 OR p.target_filters->'constituencies' @> to_jsonb(user_constituency))
+                AND
+                -- Check gender filter
+                (p.target_filters->>'gender' IS NULL 
+                 OR p.target_filters->'gender' @> to_jsonb(user_gender))
+                AND
+                -- Check age filter
+                ((p.target_filters->>'age_min' IS NULL OR (p.target_filters->>'age_min')::integer <= user_age)
+                 AND (p.target_filters->>'age_max' IS NULL OR (p.target_filters->>'age_max')::integer >= user_age))
+            ))
+        )
     ORDER BY p.created_at DESC;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;

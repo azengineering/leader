@@ -29,7 +29,16 @@ export interface Poll {
   is_active: boolean;
   active_until: string | null;
   created_at: string;
+  target_filters: PollTargetFilters | null;
   questions: PollQuestion[];
+}
+
+export interface PollTargetFilters {
+  states?: string[];
+  constituencies?: string[];
+  gender?: string[];
+  age_min?: number;
+  age_max?: number;
 }
 
 export interface PollListItem {
@@ -40,6 +49,7 @@ export interface PollListItem {
   created_at: string;
   response_count: number;
   is_promoted?: boolean;
+  target_filters?: PollTargetFilters | null;
 }
 
 export interface CreatePollData {
@@ -47,6 +57,7 @@ export interface CreatePollData {
   description?: string;
   is_active: boolean;
   active_until?: string;
+  target_filters?: PollTargetFilters;
   questions: CreatePollQuestionData[];
 }
 
@@ -298,6 +309,7 @@ export async function createPoll(pollData: CreatePollData): Promise<string> {
         description: pollData.description?.trim() || null,
         is_active: pollData.is_active,
         active_until: pollData.active_until || null,
+        target_filters: pollData.target_filters || null,
       })
       .select()
       .single();
@@ -388,6 +400,9 @@ export async function updatePoll(pollId: string, updates: Partial<CreatePollData
     }
     if (updates.active_until !== undefined) {
       updateData.active_until = updates.active_until || null;
+    }
+    if (updates.target_filters !== undefined) {
+      updateData.target_filters = updates.target_filters || null;
     }
 
     const { error } = await supabaseAdmin

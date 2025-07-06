@@ -229,7 +229,9 @@ export async function getUsers(query?: string): Promise<User[]> {
       if (isUUID) {
         usersQuery = usersQuery.eq('id', query);
       } else {
-        usersQuery = usersQuery.or(`name.ilike.%${query}%`);
+        // Search by name or get users with emails matching the query
+        const trimmedQuery = query.trim();
+        usersQuery = usersQuery.or(`name.ilike.%${trimmedQuery}%`);
       }
     }
 
@@ -239,6 +241,56 @@ export async function getUsers(query?: string): Promise<User[]> {
     if (error) {
       console.error('Error fetching users for admin:', error);
       throw new Error(`Failed to fetch users: ${error.message}`);
+    }
+
+    // If searching by text and no results found by name, try email search
+    if (query && !isUUID && (!data || data.length === 0)) {
+      const trimmedQuery = query.trim();
+      
+      // Get emails from auth.users that match the query
+      const { data: authUsers } = await supabaseAdmin.auth.admin.listUsers();
+      const matchingUserIds = authUsers.users
+        ?.filter(user => user.email?.toLowerCase().includes(trimmedQuery.toLowerCase()))
+        .map(user => user.id) || [];
+
+      if (matchingUserIds.length > 0) {
+        const { data: emailMatchData, error: emailError } = await supabaseAdmin
+          .from('users')
+          .select(`
+            *,
+            ratings!inner(count),
+            leaders!leaders_addedByUserId_fkey(count),
+            admin_messages!admin_messages_user_id_fkey(count)
+          `)
+          .in('id', matchingUserIds)
+          .eq('admin_messages.isRead', false)
+          .order('createdAt', { ascending: false });
+
+        if (emailError) {
+          console.error('Error fetching users by email:', emailError);
+          return data || [];
+        }
+
+        return emailMatchData || [];
+      }
+    }
+
+    // Get emails for all users and map them
+    const userIds = (data as any[])?.map(user => user.id) || [];
+    if (userIds.length > 0) {
+      const { data: authUsers } = await supabaseAdmin.auth.admin.listUsers();
+      const emailMap = new Map();
+      authUsers.users?.forEach(authUser => {
+        emailMap.set(authUser.id, authUser.email);
+      });
+
+      return (data as any[]).map(user => ({
+        ...user,
+        email: emailMap.get(user.id),
+        ratingCount: user.ratings?.[0]?.count || 0,
+        leaderAddedCount: user.leaders?.[0]?.count || 0,
+        unreadMessageCount: user.admin_messages?.[0]?.count || 0,
+      }));
     }
 
     return data || [];

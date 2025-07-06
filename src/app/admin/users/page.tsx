@@ -260,13 +260,28 @@ export default function AdminUsersPage() {
 
     useEffect(() => {
       const leaderIdFromQuery = searchParams.get('leaderId');
+      const actionFromQuery = searchParams.get('action');
+      
       if (leaderIdFromQuery && selectedTab === 'leaders' && userAddedLeaders.length > 0) {
           const leaderToView = userAddedLeaders.find(l => l.id === leaderIdFromQuery);
           if (leaderToView) {
               setSelectedLeaderForView(leaderToView);
           }
       }
-    }, [userAddedLeaders, searchParams, selectedTab]);
+      
+      // Handle viewing leader from ratings section
+      if (leaderIdFromQuery && actionFromQuery === 'view' && selectedTab === 'ratings') {
+          // Find leader from user activities and switch to leaders tab to view details
+          const activityLeader = userActivities.find(a => a.leaderId === leaderIdFromQuery);
+          if (activityLeader && userAddedLeaders.length > 0) {
+              const leaderToView = userAddedLeaders.find(l => l.id === leaderIdFromQuery);
+              if (leaderToView) {
+                  setSelectedTab('leaders');
+                  setSelectedLeaderForView(leaderToView);
+              }
+          }
+      }
+    }, [userAddedLeaders, userActivities, searchParams, selectedTab]);
 
     const handleEditLeader = useCallback((leader: Leader) => {
         setLeaderToEdit(leader);
@@ -581,7 +596,7 @@ export default function AdminUsersPage() {
                 <CardContent>
                     <div className="flex items-center gap-2 mb-4">
                         <Input
-                            placeholder="Search by name, email, or ID..."
+                            placeholder="Search by name, email (partial match), or ID..."
                             value={searchTerm}
                             onChange={(e) => setSearchTerm(e.target.value)}
                             onKeyDown={handleKeyDown}
@@ -652,13 +667,13 @@ export default function AdminUsersPage() {
                                                     {user.createdAt ? new Date(user.createdAt).toLocaleString() : 'N/A'}
                                                 </TableCell>
                                                 <TableCell 
-                                                    className="text-center font-medium hover:text-primary hover:underline"
+                                                    className="text-center font-medium text-primary hover:underline cursor-pointer"
                                                     onClick={() => handleSelectUser(user, 'ratings')}
                                                 >
                                                     {user.ratingCount}
                                                 </TableCell>
                                                 <TableCell 
-                                                    className="text-center font-medium hover:text-primary hover:underline"
+                                                    className="text-center font-medium text-primary hover:underline cursor-pointer"
                                                     onClick={() => handleSelectUser(user, 'leaders')}
                                                 >
                                                     {user.leaderAddedCount}
@@ -702,9 +717,9 @@ export default function AdminUsersPage() {
                         <Tabs value={selectedTab} onValueChange={(value) => setSelectedTab(value as SelectedTab)} className="w-full">
                             <TabsList className="grid w-full grid-cols-4">
                                 <TabsTrigger value="profile">Profile</TabsTrigger>
-                                <TabsTrigger value="ratings">Ratings ({selectedUser.ratingCount})</TabsTrigger>
-                                <TabsTrigger value="leaders">Leaders Added ({selectedUser.leaderAddedCount})</TabsTrigger>
-                                <TabsTrigger value="messages">Admin Messages</TabsTrigger>
+                                <TabsTrigger value="ratings">Ratings ({selectedUser.ratingCount || 0})</TabsTrigger>
+                                <TabsTrigger value="leaders">Leaders Added ({selectedUser.leaderAddedCount || 0})</TabsTrigger>
+                                <TabsTrigger value="messages">Admin Messages ({selectedUser.unreadMessageCount || 0})</TabsTrigger>
                             </TabsList>
                             <TabsContent value="profile" className="mt-4">
                                 {selectedUser.isBlocked ? (
@@ -746,7 +761,14 @@ export default function AdminUsersPage() {
                                         <TableBody>
                                         {userActivities.length > 0 ? userActivities.map(activity => (
                                             <TableRow key={activity.leaderId}>
-                                                <TableCell>{activity.leaderName}</TableCell>
+                                                <TableCell>
+                                                    <Link 
+                                                        href={`/admin/users?userId=${selectedUser.id}&leaderId=${activity.leaderId}&action=view`}
+                                                        className="text-primary hover:underline font-medium"
+                                                    >
+                                                        {activity.leaderName}
+                                                    </Link>
+                                                </TableCell>
                                                 <TableCell>
                                                     <div className="flex items-center gap-1">
                                                         <Star className="w-4 h-4 text-amber-500 fill-amber-500" />

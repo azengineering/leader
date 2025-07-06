@@ -285,3 +285,282 @@ export default function PollEditorPage() {
     </div>
   );
 }
+'use client';
+
+import { useState, useEffect } from 'react';
+import { useRouter, useParams } from 'next/navigation';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import * as z from 'zod';
+import { format } from 'date-fns';
+
+import { getPollById, updatePoll, type Poll } from '@/data/polls';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
+import { Switch } from '@/components/ui/switch';
+import { Calendar } from '@/components/ui/calendar';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { useToast } from '@/hooks/use-toast';
+import { cn } from '@/lib/utils';
+import { ChevronLeft, CalendarIcon, Loader2, Save } from 'lucide-react';
+import { Skeleton } from '@/components/ui/skeleton';
+
+const editPollSchema = z.object({
+  title: z.string().min(1, 'Poll title is required'),
+  description: z.string().optional(),
+  is_active: z.boolean(),
+  active_until: z.date().optional(),
+});
+
+type EditPollFormData = z.infer<typeof editPollSchema>;
+
+export default function EditPollPage() {
+  const router = useRouter();
+  const params = useParams();
+  const { toast } = useToast();
+  const [poll, setPoll] = useState<Poll | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const form = useForm<EditPollFormData>({
+    resolver: zodResolver(editPollSchema),
+    defaultValues: {
+      title: '',
+      description: '',
+      is_active: true,
+    },
+  });
+
+  useEffect(() => {
+    const fetchPoll = async () => {
+      if (!params.id || typeof params.id !== 'string') {
+        toast({ variant: 'destructive', title: 'Error', description: 'Invalid poll ID' });
+        router.push('/admin/tools/polls');
+        return;
+      }
+
+      try {
+        const pollData = await getPollById(params.id);
+        if (!pollData) {
+          toast({ variant: 'destructive', title: 'Error', description: 'Poll not found' });
+          router.push('/admin/tools/polls');
+          return;
+        }
+
+        setPoll(pollData);
+        form.reset({
+          title: pollData.title,
+          description: pollData.description || '',
+          is_active: pollData.is_active,
+          active_until: pollData.active_until ? new Date(pollData.active_until) : undefined,
+        });
+      } catch (error) {
+        toast({
+          variant: 'destructive',
+          title: 'Error',
+          description: error instanceof Error ? error.message : 'Failed to fetch poll',
+        });
+        router.push('/admin/tools/polls');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchPoll();
+  }, [params.id, form, router, toast]);
+
+  const onSubmit = async (data: EditPollFormData) => {
+    if (!poll) return;
+
+    setIsSubmitting(true);
+    try {
+      await updatePoll(poll.id, {
+        title: data.title,
+        description: data.description,
+        is_active: data.is_active,
+        active_until: data.active_until?.toISOString(),
+      });
+
+      toast({ title: 'Poll Updated', description: 'The poll has been updated successfully.' });
+      router.push('/admin/tools/polls');
+    } catch (error) {
+      toast({
+        variant: 'destructive',
+        title: 'Error',
+        description: error instanceof Error ? error.message : 'Failed to update poll',
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  if (isLoading) {
+    return (
+      <div className="space-y-6">
+        <div className="flex justify-between items-center">
+          <Skeleton className="h-8 w-64" />
+          <Skeleton className="h-10 w-20" />
+        </div>
+        <Card>
+          <CardHeader>
+            <Skeleton className="h-6 w-32" />
+            <Skeleton className="h-4 w-48" />
+          </CardHeader>
+          <CardContent className="space-y-6">
+            <Skeleton className="h-10 w-full" />
+            <Skeleton className="h-24 w-full" />
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <Skeleton className="h-16 w-full" />
+              <Skeleton className="h-16 w-full" />
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      <div className="flex justify-between items-center">
+        <h1 className="text-3xl font-bold font-headline">Edit Poll</h1>
+        <Button variant="outline" onClick={() => router.back()}>
+          <ChevronLeft className="mr-2 h-4 w-4" />
+          Back
+        </Button>
+      </div>
+
+      <Form {...form}>
+        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>Poll Details</CardTitle>
+              <CardDescription>Update the basic settings for your poll.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <FormField
+                control={form.control}
+                name="title"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Poll Title</FormLabel>
+                    <FormControl>
+                      <Input {...field} placeholder="Enter poll title..." />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="description"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Description (Optional)</FormLabel>
+                    <FormControl>
+                      <Textarea {...field} placeholder="Enter poll description..." rows={3} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <FormField
+                  control={form.control}
+                  name="is_active"
+                  render={({ field }) => (
+                    <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
+                      <div className="space-y-0.5">
+                        <FormLabel className="text-base">Active Poll</FormLabel>
+                        <FormDescription>Make this poll available for voting</FormDescription>
+                      </div>
+                      <FormControl>
+                        <Switch checked={field.value} onCheckedChange={field.onChange} />
+                      </FormControl>
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="active_until"
+                  render={({ field }) => (
+                    <FormItem className="flex flex-col">
+                      <FormLabel>Active Until (Optional)</FormLabel>
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <FormControl>
+                            <Button
+                              variant="outline"
+                              className={cn(
+                                'w-full pl-3 text-left font-normal',
+                                !field.value && 'text-muted-foreground'
+                              )}
+                            >
+                              {field.value ? format(field.value, 'PPP') : <span>Pick a date</span>}
+                              <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                            </Button>
+                          </FormControl>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-0" align="start">
+                          <Calendar
+                            mode="single"
+                            selected={field.value}
+                            onSelect={field.onChange}
+                            disabled={(date) => date < new Date()}
+                            initialFocus
+                          />
+                        </PopoverContent>
+                      </Popover>
+                      <FormDescription>Leave empty for no expiration date</FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+            </CardContent>
+          </Card>
+
+          {poll && (
+            <Card>
+              <CardHeader>
+                <CardTitle>Poll Questions</CardTitle>
+                <CardDescription>Questions cannot be modified after poll creation to maintain data integrity.</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  {poll.questions.map((question, index) => (
+                    <div key={question.id} className="p-4 border rounded-lg bg-muted/50">
+                      <h4 className="font-medium mb-2">Question {index + 1}: {question.question_text}</h4>
+                      <div className="space-y-1">
+                        {question.options.map((option, optionIndex) => (
+                          <div key={option.id} className="text-sm text-muted-foreground">
+                            • {option.option_text}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          <div className="flex justify-end space-x-4">
+            <Button type="button" variant="outline" onClick={() => router.back()}>
+              Cancel
+            </Button>
+            <Button type="submit" disabled={isSubmitting}>
+              {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+              Update Poll
+            </Button>
+          </div>
+        </form>
+      </Form>
+    </div>
+  );
+}

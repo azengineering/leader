@@ -107,7 +107,6 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     { href: '/admin', label: 'Dashboard', icon: LayoutDashboard },
     { href: '/admin/users', label: 'Users', icon: Users },
     { href: '/admin/leaders', label: 'Leaders', icon: UserCheck },
-    { href: '/admin/ratings', label: 'Ratings', icon: Bell },
     { href: '/admin/tools', label: 'Admin Tools', icon: Wrench },
   ];
 

@@ -5,100 +5,239 @@ import { supabase } from '@/lib/db';
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
 
 export type TicketStatus = 'open' | 'in-progress' | 'resolved' | 'closed';
+export type TicketPriority = 'low' | 'medium' | 'high' | 'urgent';
 
 export interface SupportTicket {
-    id: string;
-    user_id: string | null;
-    user_name: string;
-    user_email: string;
-    subject: string;
-    message: string;
-    status: TicketStatus;
-    created_at: string;
-    updated_at: string;
-    resolved_at: string | null;
-    admin_notes: string | null;
+  id: string;
+  user_name: string;
+  user_email: string;
+  subject: string;
+  message: string;
+  status: TicketStatus;
+  priority: TicketPriority;
+  admin_notes: string | null;
+  resolved_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CreateTicketData {
+  user_name: string;
+  user_email: string;
+  subject: string;
+  message: string;
+  priority?: TicketPriority;
 }
 
 export interface SupportTicketStats {
-    total: number;
-    open: number;
-    inProgress: number;
-    resolved: number;
-    closed: number;
-    avgResolutionHours: number | null;
+  total: number;
+  open: number;
+  inProgress: number;
+  resolved: number;
+  closed: number;
+  avgResolutionHours: number | null;
+  avgResponseTimeHours: number | null;
 }
 
-
-export async function createSupportTicket(data: Omit<SupportTicket, 'id' | 'status' | 'created_at' | 'resolved_at' | 'admin_notes' | 'updated_at'>): Promise<void> {
-    const { error } = await supabase.from('support_tickets').insert({
-        ...data,
-        status: 'open',
-    });
-    
-    if (error) {
-        console.error("Error creating support ticket:", error);
-        throw error;
-    }
+export interface GetTicketsOptions {
+  status?: TicketStatus;
+  searchQuery?: string;
+  limit?: number;
+  offset?: number;
 }
 
-export async function getSupportTickets(filters: { status?: TicketStatus, dateFrom?: string, dateTo?: string, searchQuery?: string } = {}): Promise<SupportTicket[]> {
-    let query = supabaseAdmin.from('support_tickets').select('*');
+export async function getSupportTickets(options: GetTicketsOptions = {}): Promise<SupportTicket[]> {
+  try {
+    let query = supabaseAdmin
+      .from('support_tickets')
+      .select('*');
 
-    if (filters.status) {
-        query = query.eq('status', filters.status);
-    }
-    if (filters.dateFrom) {
-        query = query.gte('created_at', filters.dateFrom);
-    }
-    if (filters.dateTo) {
-        query = query.lte('created_at', filters.dateTo);
-    }
-    if (filters.searchQuery) {
-        const searchTerm = `%${filters.searchQuery}%`;
-        query = query.or(`user_name.ilike.${searchTerm},user_email.ilike.${searchTerm},subject.ilike.${searchTerm}`);
+    if (options.status) {
+      query = query.eq('status', options.status);
     }
 
-    const { data, error } = await query.order('updated_at', { ascending: false });
-
-    if (error) {
-        console.error("Error fetching support tickets:", error);
-        return [];
+    if (options.searchQuery?.trim()) {
+      const searchTerm = `%${options.searchQuery.trim()}%`;
+      query = query.or(`user_name.ilike.${searchTerm},user_email.ilike.${searchTerm},subject.ilike.${searchTerm}`);
     }
-    return data;
-}
 
-export async function updateTicketStatus(ticketId: string, status: TicketStatus, adminNotes: string | null): Promise<void> {
-    const { error } = await supabaseAdmin
-        .from('support_tickets')
-        .update({
-            status: status,
-            admin_notes: adminNotes,
-            resolved_at: (status === 'resolved' || status === 'closed') ? new Date().toISOString() : null,
-            updated_at: new Date().toISOString(),
-        })
-        .eq('id', ticketId);
+    query = query.order('created_at', { ascending: false });
+
+    if (options.limit) {
+      query = query.limit(options.limit);
+    }
+
+    if (options.offset) {
+      query = query.range(options.offset, options.offset + (options.limit || 50) - 1);
+    }
+
+    const { data, error } = await query;
 
     if (error) {
-        console.error("Error updating ticket status:", error);
-        throw error;
+      console.error('Error fetching support tickets:', error);
+      throw new Error(`Failed to fetch support tickets: ${error.message}`);
     }
+
+    return data || [];
+  } catch (error) {
+    console.error('Error in getSupportTickets:', error);
+    throw new Error('Failed to fetch support tickets');
+  }
 }
 
 export async function getSupportTicketStats(): Promise<SupportTicketStats> {
-    const { data, error } = await supabaseAdmin.rpc('get_ticket_stats');
+  try {
+    const { data, error } = await supabaseAdmin.rpc('get_support_ticket_stats');
 
     if (error) {
-        console.error("Error fetching ticket stats:", error);
-        throw error;
+      console.error('Error fetching ticket stats:', error);
+      throw new Error(`Failed to fetch ticket statistics: ${error.message}`);
     }
 
+    const stats = data[0] || {
+      total: 0,
+      open: 0,
+      in_progress: 0,
+      resolved: 0,
+      closed: 0,
+      avg_resolution_hours: null,
+      avg_response_time_hours: null,
+    };
+
     return {
-        total: data[0].total,
-        open: data[0].open,
-        inProgress: data[0].in_progress,
-        resolved: data[0].resolved,
-        closed: data[0].closed,
-        avgResolutionHours: data[0].avg_resolution_hours,
+      total: parseInt(stats.total) || 0,
+      open: parseInt(stats.open) || 0,
+      inProgress: parseInt(stats.in_progress) || 0,
+      resolved: parseInt(stats.resolved) || 0,
+      closed: parseInt(stats.closed) || 0,
+      avgResolutionHours: stats.avg_resolution_hours ? parseFloat(stats.avg_resolution_hours) : null,
+      avgResponseTimeHours: stats.avg_response_time_hours ? parseFloat(stats.avg_response_time_hours) : null,
+    };
+  } catch (error) {
+    console.error('Error in getSupportTicketStats:', error);
+    return {
+      total: 0,
+      open: 0,
+      inProgress: 0,
+      resolved: 0,
+      closed: 0,
+      avgResolutionHours: null,
+      avgResponseTimeHours: null,
+    };
+  }
+}
+
+export async function createSupportTicket(ticketData: CreateTicketData): Promise<SupportTicket> {
+  try {
+    // Validate required fields
+    if (!ticketData.user_name?.trim()) {
+      throw new Error('Name is required');
     }
+    if (!ticketData.user_email?.trim()) {
+      throw new Error('Email is required');
+    }
+    if (!ticketData.subject?.trim()) {
+      throw new Error('Subject is required');
+    }
+    if (!ticketData.message?.trim()) {
+      throw new Error('Message is required');
+    }
+
+    // Validate email format
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(ticketData.user_email)) {
+      throw new Error('Invalid email format');
+    }
+
+    const { data, error } = await supabaseAdmin
+      .from('support_tickets')
+      .insert({
+        user_name: ticketData.user_name.trim(),
+        user_email: ticketData.user_email.trim().toLowerCase(),
+        subject: ticketData.subject.trim(),
+        message: ticketData.message.trim(),
+        priority: ticketData.priority || 'medium',
+        status: 'open',
+      })
+      .select()
+      .single();
+
+    if (error) {
+      console.error('Error creating support ticket:', error);
+      throw new Error(`Failed to create support ticket: ${error.message}`);
+    }
+
+    return data;
+  } catch (error) {
+    console.error('Error in createSupportTicket:', error);
+    if (error instanceof Error) {
+      throw error;
+    }
+    throw new Error('Failed to create support ticket');
+  }
+}
+
+export async function updateTicketStatus(
+  ticketId: string, 
+  status: TicketStatus, 
+  adminNotes?: string
+): Promise<void> {
+  try {
+    if (!ticketId) {
+      throw new Error('Ticket ID is required');
+    }
+
+    const updateData: any = {
+      status,
+      updated_at: new Date().toISOString(),
+    };
+
+    if (adminNotes !== undefined) {
+      updateData.admin_notes = adminNotes.trim() || null;
+    }
+
+    if (status === 'resolved' || status === 'closed') {
+      updateData.resolved_at = new Date().toISOString();
+    }
+
+    const { error } = await supabaseAdmin
+      .from('support_tickets')
+      .update(updateData)
+      .eq('id', ticketId);
+
+    if (error) {
+      console.error('Error updating ticket status:', error);
+      throw new Error(`Failed to update ticket status: ${error.message}`);
+    }
+  } catch (error) {
+    console.error('Error in updateTicketStatus:', error);
+    if (error instanceof Error) {
+      throw error;
+    }
+    throw new Error('Failed to update ticket status');
+  }
+}
+
+export async function deleteTicket(ticketId: string): Promise<void> {
+  try {
+    if (!ticketId) {
+      throw new Error('Ticket ID is required');
+    }
+
+    const { error } = await supabaseAdmin
+      .from('support_tickets')
+      .delete()
+      .eq('id', ticketId);
+
+    if (error) {
+      console.error('Error deleting ticket:', error);
+      throw new Error(`Failed to delete ticket: ${error.message}`);
+    }
+  } catch (error) {
+    console.error('Error in deleteTicket:', error);
+    if (error instanceof Error) {
+      throw error;
+    }
+    throw new Error('Failed to delete ticket');
+  }
 }

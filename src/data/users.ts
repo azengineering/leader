@@ -222,10 +222,10 @@ export async function getUsers(query?: string): Promise<User[]> {
       `)
       .eq('admin_messages.isRead', false);
 
-    if (query) {
-      // Handle UUID vs string search properly
-      const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(query);
+    // Handle UUID vs string search properly
+    const isUUID = query ? /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(query) : false;
 
+    if (query) {
       if (isUUID) {
         usersQuery = usersQuery.eq('id', query);
       } else {

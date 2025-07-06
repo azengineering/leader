@@ -70,14 +70,14 @@ export default function EditPollPage() {
           form.reset({
             title: pollData.title,
             description: pollData.description,
-            isActive: pollData.isActive,
-            endDate: new Date(pollData.endDate),
+            isActive: pollData.is_active,
+            endDate: pollData.active_until ? new Date(pollData.active_until) : new Date(),
             questions: pollData.questions.map(q => ({
               id: q.id,
-              questionText: q.questionText,
+              questionText: q.question_text,
               options: q.options.map(o => ({
                 id: o.id,
-                optionText: o.optionText,
+                optionText: o.option_text,
               })),
             })),
           });
@@ -105,9 +105,8 @@ export default function EditPollPage() {
       await updatePoll(poll.id, {
         title: data.title,
         description: data.description,
-        isActive: data.isActive,
-        endDate: data.endDate.toISOString(),
-        questions: data.questions,
+        is_active: data.isActive,
+        active_until: data.endDate.toISOString(),
       });
 
       toast({

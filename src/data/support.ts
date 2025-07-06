@@ -1,4 +1,3 @@
-
 'use server';
 
 import { supabase } from '@/lib/db';
@@ -87,43 +86,45 @@ export async function getSupportTickets(options: GetTicketsOptions = {}): Promis
 
 export async function getSupportTicketStats(): Promise<SupportTicketStats> {
   try {
-    const { data, error } = await supabaseAdmin.rpc('get_support_ticket_stats');
+    // Use direct query instead of RPC function to avoid type mismatch
+    const { data, error } = await supabaseAdmin
+      .from('support_tickets')
+      .select('status, created_at, resolved_at');
 
     if (error) {
       console.error('Error fetching ticket stats:', error);
       throw new Error(`Failed to fetch ticket statistics: ${error.message}`);
     }
 
-    const stats = data[0] || {
-      total: 0,
-      open: 0,
-      in_progress: 0,
-      resolved: 0,
-      closed: 0,
-      avg_resolution_hours: null,
-      avg_response_time_hours: null,
-    };
+    const tickets = data || [];
+    const total = tickets.length;
+    const open = tickets.filter(t => t.status === 'open').length;
+    const in_progress = tickets.filter(t => t.status === 'in-progress').length;
+    const resolved = tickets.filter(t => t.status === 'resolved').length;
+    const closed = tickets.filter(t => t.status === 'closed').length;
+
+    // Calculate average resolution time
+    const resolvedTickets = tickets.filter(t => t.resolved_at);
+    const avg_resolution_hours = resolvedTickets.length > 0 
+      ? resolvedTickets.reduce((sum, ticket) => {
+          const created = new Date(ticket.created_at);
+          const resolved = new Date(ticket.resolved_at);
+          return sum + (resolved.getTime() - created.getTime()) / (1000 * 60 * 60);
+        }, 0) / resolvedTickets.length
+      : 0;
 
     return {
-      total: parseInt(stats.total) || 0,
-      open: parseInt(stats.open) || 0,
-      inProgress: parseInt(stats.in_progress) || 0,
-      resolved: parseInt(stats.resolved) || 0,
-      closed: parseInt(stats.closed) || 0,
-      avgResolutionHours: stats.avg_resolution_hours ? parseFloat(stats.avg_resolution_hours) : null,
-      avgResponseTimeHours: stats.avg_response_time_hours ? parseFloat(stats.avg_response_time_hours) : null,
+      total,
+      open,
+      inProgress: in_progress,
+      resolved,
+      closed,
+      avgResolutionHours: avg_resolution_hours,
+      avgResponseTimeHours: null,
     };
   } catch (error) {
     console.error('Error in getSupportTicketStats:', error);
-    return {
-      total: 0,
-      open: 0,
-      inProgress: 0,
-      resolved: 0,
-      closed: 0,
-      avgResolutionHours: null,
-      avgResponseTimeHours: null,
-    };
+    throw new Error('Failed to fetch ticket statistics');
   }
 }
 

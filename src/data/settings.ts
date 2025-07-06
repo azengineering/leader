@@ -8,7 +8,7 @@ export interface SiteSettings {
   id: number;
   site_title: string;
   site_description: string;
-  maintenance_active: string;
+  maintenance_active: boolean;
   maintenance_start: string;
   maintenance_end: string;
   maintenance_message: string;
@@ -21,11 +21,11 @@ export interface SiteSettings {
   enable_user_registration: boolean;
   enable_public_polls: boolean;
   max_ratings_per_user: number;
-  updated_at: string;
+  updatedAt: string;
 }
 
 export type PartialSiteSettings = {
-  [K in keyof Omit<SiteSettings, 'id' | 'updated_at'>]?: SiteSettings[K];
+  [K in keyof Omit<SiteSettings, 'id' | 'updatedAt'>]?: SiteSettings[K];
 }
 
 export async function getSiteSettings(): Promise<SiteSettings> {
@@ -43,7 +43,7 @@ export async function getSiteSettings(): Promise<SiteSettings> {
         id: 1,
         site_title: 'PolitiRate',
         site_description: 'Rate and review political leaders',
-        maintenance_active: 'false',
+        maintenance_active: false,
         maintenance_start: '',
         maintenance_end: '',
         maintenance_message: 'The site is currently down for maintenance. Please check back later.',
@@ -56,7 +56,7 @@ export async function getSiteSettings(): Promise<SiteSettings> {
         enable_user_registration: true,
         enable_public_polls: true,
         max_ratings_per_user: 100,
-        updated_at: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
       };
     }
 
@@ -77,7 +77,7 @@ export async function updateSiteSettings(updates: PartialSiteSettings): Promise<
       }
     }
 
-    if (updates.maintenance_active && !['true', 'false'].includes(updates.maintenance_active)) {
+    if (updates.maintenance_active !== undefined && typeof updates.maintenance_active !== 'boolean') {
       throw new Error('Invalid maintenance_active value');
     }
 
@@ -86,7 +86,7 @@ export async function updateSiteSettings(updates: PartialSiteSettings): Promise<
       .upsert({
         id: 1,
         ...updates,
-        updated_at: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
       }, {
         onConflict: 'id',
       });
@@ -116,7 +116,7 @@ export async function initializeSiteSettings(): Promise<void> {
       await updateSiteSettings({
         site_title: 'PolitiRate',
         site_description: 'Rate and review political leaders in your constituency',
-        maintenance_active: 'false',
+        maintenance_active: false,
         maintenance_message: 'The site is currently down for maintenance. Please check back later.',
         contact_email: '',
         enable_user_registration: true,

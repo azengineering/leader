@@ -24,6 +24,7 @@ import { cn } from '@/lib/utils';
 import { ChevronLeft, CalendarIcon, Plus, Trash2, Loader2, Save, Users } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
 import { Checkbox } from '@/components/ui/checkbox';
+import { Badge } from '@/components/ui/badge';
 
 const questionSchema = z.object({
   question_text: z.string().min(1, 'Question text is required'),

@@ -1,4 +1,3 @@
-
 'use server';
 
 import { supabase } from '@/lib/db';
@@ -322,7 +321,7 @@ export async function createPoll(pollData: CreatePollData): Promise<string> {
     // Create questions and options
     for (let i = 0; i < pollData.questions.length; i++) {
       const questionData = pollData.questions[i];
-      
+
       const { data: question, error: questionError } = await supabaseAdmin
         .from('poll_questions')
         .insert({
@@ -464,7 +463,7 @@ export async function deletePoll(pollId: string): Promise<void> {
       }
     }
 
-    
+
 
     // Then delete poll_questions
     const { error: questionsError } = await supabaseAdmin
@@ -515,7 +514,7 @@ export async function submitPollResponse(pollId: string, userId: string, answers
     // Validate answers
     const questionIds = poll.questions.map(q => q.id);
     const answerQuestionIds = answers.map(a => a.questionId);
-    
+
     if (answerQuestionIds.length !== questionIds.length) {
       throw new Error('All questions must be answered');
     }
@@ -627,11 +626,11 @@ export async function getPollResults(pollId: string): Promise<PollResult | null>
 
       // Count answers for this specific question
       const answerCounts: { [key: string]: number } = {};
-      
+
       responseData?.forEach((response: any) => {
         const answers = response.answers || {};
         const selectedOptionId = answers[question.id];
-        
+
         if (selectedOptionId) {
           // Find the option text from the question's options
           const selectedOption = question.options.find(opt => opt.id === selectedOptionId);

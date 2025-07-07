@@ -14,6 +14,13 @@ export interface SiteNotification {
   notification_type: 'announcement' | 'alert' | 'info' | 'warning';
   show_banner: boolean;
   link: string | null;
+  target_filters: {
+    states?: string[];
+    constituencies?: string[];
+    gender?: string[];
+    age_min?: number;
+    age_max?: number;
+  } | null;
   created_at: string;
   updated_at: string;
 }
@@ -27,6 +34,13 @@ export interface CreateNotificationData {
   notification_type?: 'announcement' | 'alert' | 'info' | 'warning';
   show_banner?: boolean;
   link?: string | null;
+  target_filters?: {
+    states?: string[];
+    constituencies?: string[];
+    gender?: string[];
+    age_min?: number;
+    age_max?: number;
+  } | null;
 }
 
 export interface UpdateNotificationData extends Partial<CreateNotificationData> {}
@@ -70,6 +84,94 @@ export async function getActiveNotifications(): Promise<SiteNotification[]> {
     return data || [];
   } catch (error) {
     console.error('Error in getActiveNotifications:', error);
+    return [];
+  }
+}
+
+export async function getActiveNotificationsForUser(userId: string | null): Promise<SiteNotification[]> {
+  try {
+    const now = new Date().toISOString();
+    
+    // First get all active notifications
+    const { data: notifications, error } = await supabaseAdmin
+      .from('notifications')
+      .select('*')
+      .eq('isActive', true)
+      .or(`startTime.is.null,startTime.lte.${now}`)
+      .or(`endTime.is.null,endTime.gte.${now}`)
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      console.error('Error fetching active notifications:', error);
+      throw new Error(`Failed to fetch active notifications: ${error.message}`);
+    }
+
+    if (!notifications) return [];
+
+    // If no user is logged in, only return notifications without target filters
+    if (!userId) {
+      return notifications.filter(notification => !notification.target_filters);
+    }
+
+    // Get user demographics for filtering
+    const { data: userData, error: userError } = await supabaseAdmin
+      .from('users')
+      .select('state, mpConstituency, gender, dateOfBirth')
+      .eq('id', userId)
+      .single();
+
+    if (userError) {
+      console.error('Error fetching user data for notifications:', userError);
+      // Return notifications without target filters if we can't get user data
+      return notifications.filter(notification => !notification.target_filters);
+    }
+
+    const userAge = userData?.dateOfBirth ? 
+      Math.floor((Date.now() - new Date(userData.dateOfBirth).getTime()) / (365.25 * 24 * 60 * 60 * 1000)) : 
+      null;
+
+    // Filter notifications based on target audience
+    return notifications.filter(notification => {
+      // If no target filters, show to everyone
+      if (!notification.target_filters) return true;
+
+      const filters = notification.target_filters;
+
+      // Check state filter
+      if (filters.states && filters.states.length > 0) {
+        if (!userData?.state || !filters.states.includes(userData.state)) {
+          return false;
+        }
+      }
+
+      // Check constituency filter
+      if (filters.constituencies && filters.constituencies.length > 0) {
+        if (!userData?.mpConstituency || !filters.constituencies.includes(userData.mpConstituency)) {
+          return false;
+        }
+      }
+
+      // Check gender filter
+      if (filters.gender && filters.gender.length > 0) {
+        if (!userData?.gender || !filters.gender.includes(userData.gender)) {
+          return false;
+        }
+      }
+
+      // Check age filters
+      if (userAge !== null) {
+        if (filters.age_min && userAge < filters.age_min) {
+          return false;
+        }
+        if (filters.age_max && userAge > filters.age_max) {
+          return false;
+        }
+      }
+
+      return true;
+    });
+  } catch (error) {
+    console.error('Error in getActiveNotificationsForUser:', error);
     return [];
   }
 }

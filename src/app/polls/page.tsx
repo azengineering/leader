@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -83,13 +82,14 @@ export default function PollsPage() {
     useEffect(() => {
         const fetchPolls = async () => {
             setIsLoading(true);
+            // Pass the user ID to enable proper target audience filtering
             const pollsData = await getActivePollsForUser(user?.id || null);
             setPolls(pollsData);
             setIsLoading(false);
         };
         fetchPolls();
     }, [user]);
-    
+
     const handleParticipate = (pollId: string) => {
         if (!user) {
             setSelectedPollId(pollId);
@@ -98,7 +98,7 @@ export default function PollsPage() {
             router.push(`/polls/${pollId}`);
         }
     };
-    
+
     const PollsSkeleton = () => (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {[...Array(6)].map((_, i) => (

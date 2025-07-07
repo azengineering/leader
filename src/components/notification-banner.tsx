@@ -1,9 +1,8 @@
-
 'use client';
 
 import { useState, useEffect } from 'react';
 import { Megaphone, X } from 'lucide-react';
-import { getActiveNotifications, type SiteNotification } from '@/data/notifications';
+import { getActiveNotificationsForUser, type SiteNotification } from '@/data/notifications';
 import { Carousel, CarouselContent, CarouselItem, type CarouselApi } from '@/components/ui/carousel';
 import { Button } from './ui/button';
 import { usePathname, useRouter } from 'next/navigation';
@@ -37,16 +36,20 @@ export default function NotificationBanner() {
             return;
         }
 
-        const fetchNotifications = async () => {
-            const activeNotifications = await getActiveNotifications();
-            setNotifications(activeNotifications);
-            if (activeNotifications.length > 0) {
-                setIsVisible(true);
+        async function fetchNotifications() {
+            try {
+                const data = await getActiveNotificationsForUser(user?.id || null);
+                const bannerNotifications = data.filter(notification => notification.show_banner);
+                setNotifications(bannerNotifications);
+                setIsVisible(bannerNotifications.length > 0);
+            } catch (error) {
+                console.error('Error fetching notifications:', error);
+                setIsVisible(false);
             }
-        };
+        }
 
         fetchNotifications();
-    }, [pathname]);
+    }, [pathname, user]);
 
     useEffect(() => {
         if (!api) return;
@@ -61,7 +64,7 @@ export default function NotificationBanner() {
 
         return () => clearInterval(interval);
     }, [api]);
-    
+
     const handleNotificationClick = (e: React.MouseEvent, notification: SiteNotification) => {
         if (notification.link && notification.link.startsWith('/polls') && !user) {
             e.preventDefault();
@@ -79,7 +82,7 @@ export default function NotificationBanner() {
         e.stopPropagation();
         setIsVisible(false);
     };
-    
+
     const Wrapper = ({ notification, children }: { notification: SiteNotification; children: React.ReactNode }) => {
       if (notification.link) {
         return (

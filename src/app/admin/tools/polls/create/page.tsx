@@ -246,15 +246,51 @@ export default function CreatePollPage() {
                 Target Audience (Optional)
               </CardTitle>
               <CardDescription>
-                Specify which users should see this poll. Leave empty to show to all users.
+                Specify which users should see this poll. Leave all fields empty to show to all users by default.
+                You can combine multiple filters to narrow down your audience.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
+              {/* Quick Actions */}
+              <div className="flex gap-2 mb-4">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    form.setValue('target_filters.states', []);
+                    form.setValue('target_filters.constituencies', []);
+                    form.setValue('target_filters.gender', []);
+                    form.setValue('target_filters.age_min', undefined);
+                    form.setValue('target_filters.age_max', undefined);
+                  }}
+                >
+                  Clear All Filters
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    form.setValue('target_filters.states', indianStates);
+                  }}
+                >
+                  Select All States
+                </Button>
+              </div>
+
               {/* States Filter */}
               <div className="space-y-3">
-                <FormLabel>Target States</FormLabel>
-                <FormDescription>Select specific states where this poll should be visible</FormDescription>
-                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 max-h-48 overflow-y-auto p-3 border rounded-lg">
+                <div className="flex items-center justify-between">
+                  <FormLabel>Target States</FormLabel>
+                  <span className="text-xs text-muted-foreground">
+                    {form.watch('target_filters.states')?.length || 0} of {indianStates.length} selected
+                  </span>
+                </div>
+                <FormDescription>
+                  Select specific states where this poll should be visible. Leave empty to target all states.
+                </FormDescription>
+                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 max-h-48 overflow-y-auto p-3 border rounded-lg bg-muted/20">
                   {indianStates.map((state) => (
                     <FormField
                       key={state}
@@ -271,6 +307,13 @@ export default function CreatePollPage() {
                                   field.onChange([...currentStates, state]);
                                 } else {
                                   field.onChange(currentStates.filter(s => s !== state));
+                                  // Also remove constituencies from deselected state
+                                  const currentConstituencies = form.getValues('target_filters.constituencies') || [];
+                                  const stateConstituencies = districtsByState[state] || [];
+                                  const filteredConstituencies = currentConstituencies.filter(
+                                    c => !stateConstituencies.includes(c)
+                                  );
+                                  form.setValue('target_filters.constituencies', filteredConstituencies);
                                 }
                               }}
                             />
@@ -287,58 +330,124 @@ export default function CreatePollPage() {
 
               {/* Constituencies Filter */}
               <div className="space-y-3">
-                <FormLabel>Target Constituencies</FormLabel>
-                <FormDescription>Select specific constituencies (requires state selection)</FormDescription>
-                <div className="space-y-3">
-                  {form.watch('target_filters.states')?.map((state) => {
-                    const constituencies = districtsByState[state] || [];
-                    if (constituencies.length === 0) return null;
-                    
-                    return (
-                      <div key={state} className="space-y-2">
-                        <h4 className="font-medium text-sm">{state}</h4>
-                        <div className="grid grid-cols-2 md:grid-cols-3 gap-3 pl-4">
-                          {constituencies.map((constituency) => (
-                            <FormField
-                              key={`${state}-${constituency}`}
-                              control={form.control}
-                              name="target_filters.constituencies"
-                              render={({ field }) => (
-                                <FormItem className="flex flex-row items-start space-x-3 space-y-0">
-                                  <FormControl>
-                                    <Checkbox
-                                      checked={field.value?.includes(constituency)}
-                                      onCheckedChange={(checked) => {
-                                        const currentConstituencies = field.value || [];
-                                        if (checked) {
-                                          field.onChange([...currentConstituencies, constituency]);
-                                        } else {
-                                          field.onChange(currentConstituencies.filter(c => c !== constituency));
-                                        }
-                                      }}
-                                    />
-                                  </FormControl>
-                                  <FormLabel className="text-sm font-normal cursor-pointer">
-                                    {constituency}
-                                  </FormLabel>
-                                </FormItem>
-                              )}
-                            />
-                          ))}
-                        </div>
-                      </div>
-                    );
-                  })}
-                  {(!form.watch('target_filters.states') || form.watch('target_filters.states')?.length === 0) && (
-                    <p className="text-sm text-muted-foreground">Select states first to see constituencies</p>
-                  )}
+                <div className="flex items-center justify-between">
+                  <FormLabel>Target Constituencies</FormLabel>
+                  <span className="text-xs text-muted-foreground">
+                    {form.watch('target_filters.constituencies')?.length || 0} selected
+                  </span>
                 </div>
+                <FormDescription>
+                  Select specific constituencies within the chosen states. Available constituencies appear after selecting states.
+                </FormDescription>
+                
+                {form.watch('target_filters.states')?.length > 0 ? (
+                  <div className="space-y-4">
+                    {form.watch('target_filters.states')?.map((state) => {
+                      const constituencies = districtsByState[state] || [];
+                      if (constituencies.length === 0) return null;
+                      
+                      const selectedConstituencies = form.watch('target_filters.constituencies') || [];
+                      const stateConstituenciesSelected = constituencies.filter(c => 
+                        selectedConstituencies.includes(c)
+                      ).length;
+                      
+                      return (
+                        <div key={state} className="space-y-3 p-4 border rounded-lg bg-muted/10">
+                          <div className="flex items-center justify-between">
+                            <h4 className="font-medium text-sm flex items-center gap-2">
+                              {state}
+                              <Badge variant="outline" className="text-xs">
+                                {stateConstituenciesSelected}/{constituencies.length}
+                              </Badge>
+                            </h4>
+                            <div className="flex gap-1">
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => {
+                                  const currentConstituencies = form.getValues('target_filters.constituencies') || [];
+                                  const otherStateConstituencies = currentConstituencies.filter(
+                                    c => !constituencies.includes(c)
+                                  );
+                                  form.setValue('target_filters.constituencies', [
+                                    ...otherStateConstituencies,
+                                    ...constituencies
+                                  ]);
+                                }}
+                                className="text-xs"
+                              >
+                                Select All
+                              </Button>
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => {
+                                  const currentConstituencies = form.getValues('target_filters.constituencies') || [];
+                                  const filteredConstituencies = currentConstituencies.filter(
+                                    c => !constituencies.includes(c)
+                                  );
+                                  form.setValue('target_filters.constituencies', filteredConstituencies);
+                                }}
+                                className="text-xs"
+                              >
+                                Clear
+                              </Button>
+                            </div>
+                          </div>
+                          <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                            {constituencies.map((constituency) => (
+                              <FormField
+                                key={`${state}-${constituency}`}
+                                control={form.control}
+                                name="target_filters.constituencies"
+                                render={({ field }) => (
+                                  <FormItem className="flex flex-row items-start space-x-3 space-y-0">
+                                    <FormControl>
+                                      <Checkbox
+                                        checked={field.value?.includes(constituency)}
+                                        onCheckedChange={(checked) => {
+                                          const currentConstituencies = field.value || [];
+                                          if (checked) {
+                                            field.onChange([...currentConstituencies, constituency]);
+                                          } else {
+                                            field.onChange(currentConstituencies.filter(c => c !== constituency));
+                                          }
+                                        }}
+                                      />
+                                    </FormControl>
+                                    <FormLabel className="text-sm font-normal cursor-pointer">
+                                      {constituency}
+                                    </FormLabel>
+                                  </FormItem>
+                                )}
+                              />
+                            ))}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div className="text-center py-8 text-muted-foreground border rounded-lg bg-muted/10">
+                    <Users className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                    <p className="text-sm">Select states first to see available constituencies</p>
+                  </div>
+                )}
               </div>
+
+              <Separator />
 
               {/* Gender Filter */}
               <div className="space-y-3">
-                <FormLabel>Target Gender</FormLabel>
-                <FormDescription>Select specific genders to target</FormDescription>
+                <div className="flex items-center justify-between">
+                  <FormLabel>Target Gender</FormLabel>
+                  <span className="text-xs text-muted-foreground">
+                    {form.watch('target_filters.gender')?.length || 0} selected
+                  </span>
+                </div>
+                <FormDescription>Select specific genders to target. Leave empty to target all genders.</FormDescription>
                 <div className="flex flex-wrap gap-4">
                   {['Male', 'Female', 'Other'].map((gender) => (
                     <FormField
@@ -360,8 +469,11 @@ export default function CreatePollPage() {
                               }}
                             />
                           </FormControl>
-                          <FormLabel className="text-sm font-normal cursor-pointer">
+                          <FormLabel className="text-sm font-normal cursor-pointer flex items-center gap-2">
                             {gender}
+                            <Badge variant="outline" className="text-xs">
+                              {gender}
+                            </Badge>
                           </FormLabel>
                         </FormItem>
                       )}
@@ -371,47 +483,110 @@ export default function CreatePollPage() {
               </div>
 
               {/* Age Range Filter */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <FormField
-                  control={form.control}
-                  name="target_filters.age_min"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Minimum Age</FormLabel>
-                      <FormControl>
-                        <Input
-                          type="number"
-                          min="18"
-                          max="100"
-                          placeholder="18"
-                          value={field.value || ''}
-                          onChange={(e) => field.onChange(e.target.value ? parseInt(e.target.value) : undefined)}
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="target_filters.age_max"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Maximum Age</FormLabel>
-                      <FormControl>
-                        <Input
-                          type="number"
-                          min="18"
-                          max="100"
-                          placeholder="100"
-                          value={field.value || ''}
-                          onChange={(e) => field.onChange(e.target.value ? parseInt(e.target.value) : undefined)}
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+              <div className="space-y-3">
+                <FormLabel>Age Range</FormLabel>
+                <FormDescription>Set minimum and maximum age limits. Leave empty for no age restrictions.</FormDescription>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <FormField
+                    control={form.control}
+                    name="target_filters.age_min"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Minimum Age</FormLabel>
+                        <FormControl>
+                          <Input
+                            type="number"
+                            min="18"
+                            max="100"
+                            placeholder="18"
+                            value={field.value || ''}
+                            onChange={(e) => field.onChange(e.target.value ? parseInt(e.target.value) : undefined)}
+                          />
+                        </FormControl>
+                        <FormDescription>Must be 18 or older</FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="target_filters.age_max"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Maximum Age</FormLabel>
+                        <FormControl>
+                          <Input
+                            type="number"
+                            min="18"
+                            max="100"
+                            placeholder="100"
+                            value={field.value || ''}
+                            onChange={(e) => field.onChange(e.target.value ? parseInt(e.target.value) : undefined)}
+                          />
+                        </FormControl>
+                        <FormDescription>Maximum 100 years</FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+                {form.watch('target_filters.age_min') && form.watch('target_filters.age_max') && 
+                 form.watch('target_filters.age_min') > form.watch('target_filters.age_max') && (
+                  <p className="text-destructive text-sm">Minimum age cannot be greater than maximum age</p>
+                )}
+              </div>
+
+              {/* Filter Summary */}
+              <div className="bg-muted/30 rounded-lg p-4 border">
+                <h4 className="text-sm font-medium mb-2 flex items-center gap-2">
+                  Target Audience Summary
+                  <Badge variant="outline" className="text-xs">
+                    {(form.watch('target_filters.states')?.length || 0) + 
+                     (form.watch('target_filters.constituencies')?.length || 0) + 
+                     (form.watch('target_filters.gender')?.length || 0) +
+                     (form.watch('target_filters.age_min') ? 1 : 0) +
+                     (form.watch('target_filters.age_max') ? 1 : 0) === 0 
+                      ? 'All Users' 
+                      : `${(form.watch('target_filters.states')?.length || 0) + 
+                           (form.watch('target_filters.constituencies')?.length || 0) + 
+                           (form.watch('target_filters.gender')?.length || 0) +
+                           (form.watch('target_filters.age_min') ? 1 : 0) +
+                           (form.watch('target_filters.age_max') ? 1 : 0)} filters active`}
+                  </Badge>
+                </h4>
+                
+                {(form.watch('target_filters.states')?.length || 0) === 0 && 
+                 (form.watch('target_filters.constituencies')?.length || 0) === 0 && 
+                 (form.watch('target_filters.gender')?.length || 0) === 0 &&
+                 !form.watch('target_filters.age_min') &&
+                 !form.watch('target_filters.age_max') ? (
+                  <p className="text-sm text-muted-foreground">
+                    This poll will be visible to <strong>all users</strong> on the platform.
+                  </p>
+                ) : (
+                  <div className="space-y-2 text-sm">
+                    {form.watch('target_filters.states')?.length > 0 && (
+                      <p>
+                        <strong>States:</strong> {form.watch('target_filters.states').join(', ')}
+                      </p>
+                    )}
+                    {form.watch('target_filters.constituencies')?.length > 0 && (
+                      <p>
+                        <strong>Constituencies:</strong> {form.watch('target_filters.constituencies').join(', ')}
+                      </p>
+                    )}
+                    {form.watch('target_filters.gender')?.length > 0 && (
+                      <p>
+                        <strong>Gender:</strong> {form.watch('target_filters.gender').join(', ')}
+                      </p>
+                    )}
+                    {(form.watch('target_filters.age_min') || form.watch('target_filters.age_max')) && (
+                      <p>
+                        <strong>Age Range:</strong> {form.watch('target_filters.age_min') || '18'} - {form.watch('target_filters.age_max') || '100'} years
+                      </p>
+                    )}
+                  </div>
+                )}
               </div>
             </CardContent>
           </Card>

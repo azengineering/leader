@@ -334,108 +334,106 @@ export default function CreatePollPage() {
                 <div className="flex items-center justify-between">
                   <FormLabel>Target Constituencies</FormLabel>
                   <span className="text-xs text-muted-foreground">
-                    {form.watch('target_filters.constituencies')?.length || 0} selected
+                    {form.watch('target_filters.constituencies')?.length || 0} added
                   </span>
                 </div>
                 <FormDescription>
-                  Select specific constituencies within the chosen states. Available constituencies appear after selecting states.
+                  Add specific constituencies to target. You can add MP Constituency (Lok Sabha), MLA Constituency (Vidhan Sabha), or Panchayat/Corporation constituencies. Leave empty to target all constituencies.
                 </FormDescription>
                 
-                {form.watch('target_filters.states')?.length > 0 ? (
-                  <div className="space-y-4">
-                    {form.watch('target_filters.states')?.map((state) => {
-                      const constituencies = districtsByState[state] || [];
-                      if (constituencies.length === 0) return null;
-                      
-                      const selectedConstituencies = form.watch('target_filters.constituencies') || [];
-                      const stateConstituenciesSelected = constituencies.filter(c => 
-                        selectedConstituencies.includes(c)
-                      ).length;
-                      
-                      return (
-                        <div key={state} className="space-y-3 p-4 border rounded-lg bg-muted/10">
-                          <div className="flex items-center justify-between">
-                            <h4 className="font-medium text-sm flex items-center gap-2">
-                              {state}
-                              <Badge variant="outline" className="text-xs">
-                                {stateConstituenciesSelected}/{constituencies.length}
-                              </Badge>
-                            </h4>
-                            <div className="flex gap-1">
-                              <Button
-                                type="button"
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => {
-                                  const currentConstituencies = form.getValues('target_filters.constituencies') || [];
-                                  const otherStateConstituencies = currentConstituencies.filter(
-                                    c => !constituencies.includes(c)
-                                  );
-                                  form.setValue('target_filters.constituencies', [
-                                    ...otherStateConstituencies,
-                                    ...constituencies
-                                  ]);
-                                }}
-                                className="text-xs"
-                              >
-                                Select All
-                              </Button>
-                              <Button
-                                type="button"
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => {
-                                  const currentConstituencies = form.getValues('target_filters.constituencies') || [];
-                                  const filteredConstituencies = currentConstituencies.filter(
-                                    c => !constituencies.includes(c)
-                                  );
-                                  form.setValue('target_filters.constituencies', filteredConstituencies);
-                                }}
-                                className="text-xs"
-                              >
-                                Clear
-                              </Button>
-                            </div>
-                          </div>
-                          <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-                            {constituencies.map((constituency) => (
-                              <FormField
-                                key={`${state}-${constituency}`}
-                                control={form.control}
-                                name="target_filters.constituencies"
-                                render={({ field }) => (
-                                  <FormItem className="flex flex-row items-start space-x-3 space-y-0">
-                                    <FormControl>
-                                      <Checkbox
-                                        checked={field.value?.includes(constituency)}
-                                        onCheckedChange={(checked) => {
-                                          const currentConstituencies = field.value || [];
-                                          if (checked) {
-                                            field.onChange([...currentConstituencies, constituency]);
-                                          } else {
-                                            field.onChange(currentConstituencies.filter(c => c !== constituency));
-                                          }
-                                        }}
-                                      />
-                                    </FormControl>
-                                    <FormLabel className="text-sm font-normal cursor-pointer">
-                                      {constituency}
-                                    </FormLabel>
-                                  </FormItem>
-                                )}
-                              />
-                            ))}
-                          </div>
-                        </div>
-                      );
-                    })}
+                <div className="space-y-4">
+                  {/* Input for adding new constituency */}
+                  <div className="flex gap-2">
+                    <Input
+                      placeholder="e.g., Mumbai North (MP), Pune Assembly (MLA), or Ward 15 Panchayat"
+                      value=""
+                      onChange={(e) => {
+                        // Handle input change temporarily
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          const value = e.currentTarget.value.trim();
+                          if (value) {
+                            const currentConstituencies = form.getValues('target_filters.constituencies') || [];
+                            if (!currentConstituencies.includes(value)) {
+                              form.setValue('target_filters.constituencies', [...currentConstituencies, value]);
+                            }
+                            e.currentTarget.value = '';
+                          }
+                        }
+                      }}
+                      className="flex-1"
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={(e) => {
+                        const input = e.currentTarget.parentElement?.querySelector('input') as HTMLInputElement;
+                        const value = input?.value.trim();
+                        if (value) {
+                          const currentConstituencies = form.getValues('target_filters.constituencies') || [];
+                          if (!currentConstituencies.includes(value)) {
+                            form.setValue('target_filters.constituencies', [...currentConstituencies, value]);
+                          }
+                          if (input) input.value = '';
+                        }
+                      }}
+                    >
+                      <Plus className="h-4 w-4 mr-1" />
+                      Add
+                    </Button>
                   </div>
-                ) : (
-                  <div className="text-center py-8 text-muted-foreground border rounded-lg bg-muted/10">
-                    <Users className="h-8 w-8 mx-auto mb-2 opacity-50" />
-                    <p className="text-sm">Select states first to see available constituencies</p>
+
+                  {/* Display added constituencies */}
+                  {form.watch('target_filters.constituencies')?.length > 0 && (
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between">
+                        <h4 className="text-sm font-medium">Added Constituencies</h4>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => form.setValue('target_filters.constituencies', [])}
+                          className="text-xs text-destructive hover:text-destructive"
+                        >
+                          Clear All
+                        </Button>
+                      </div>
+                      
+                      <div className="flex flex-wrap gap-2">
+                        {form.watch('target_filters.constituencies')?.map((constituency, index) => (
+                          <Badge key={index} variant="secondary" className="flex items-center gap-1 py-1 px-2">
+                            <span className="text-sm">{constituency}</span>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => {
+                                const currentConstituencies = form.getValues('target_filters.constituencies') || [];
+                                const filteredConstituencies = currentConstituencies.filter((_, i) => i !== index);
+                                form.setValue('target_filters.constituencies', filteredConstituencies);
+                              }}
+                              className="h-4 w-4 p-0 hover:bg-destructive hover:text-destructive-foreground"
+                            >
+                              <Trash2 className="h-3 w-3" />
+                            </Button>
+                          </Badge>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Helper text with examples */}
+                  <div className="bg-muted/30 rounded-lg p-3 border">
+                    <h4 className="text-xs font-medium mb-2">Examples of constituency formats:</h4>
+                    <ul className="text-xs text-muted-foreground space-y-1">
+                      <li>• <strong>MP Constituency:</strong> Mumbai North, Delhi South, Pune, Bangalore South</li>
+                      <li>• <strong>MLA Constituency:</strong> Worli Assembly, Andheri East Assembly, Koregaon Park Vidhan Sabha</li>
+                      <li>• <strong>Panchayat/Corporation:</strong> Ward 15 Pune Corporation, Bavdhan Panchayat, Zone 3 PCMC</li>
+                    </ul>
                   </div>
-                )}
+                </div>
               </div>
 
               <Separator />

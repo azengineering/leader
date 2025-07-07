@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { Megaphone, X } from 'lucide-react';
-import { getActiveNotifications, type SiteNotification } from '@/data/notifications';
+import { getActiveNotificationsForUser, type SiteNotification } from '@/data/notifications';
 import { Carousel, CarouselContent, CarouselItem, type CarouselApi } from '@/components/ui/carousel';
 import { Button } from './ui/button';
 import { usePathname, useRouter } from 'next/navigation';

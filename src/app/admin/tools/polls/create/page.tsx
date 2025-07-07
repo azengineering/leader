@@ -357,6 +357,17 @@ export default function CreatePollPage() {
                   >
                     <Plus className="h-4 w-4" />
                   </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => {
+                      form.setValue('target_filters.constituencies', []);
+                      setConstituencyInput('');
+                    }}
+                    title="Clear all constituencies"
+                  >
+                    ✕
+                  </Button>
                 </div>
 
                 {form.watch('target_filters.constituencies')?.length > 0 && (

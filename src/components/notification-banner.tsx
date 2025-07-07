@@ -38,7 +38,7 @@ export default function NotificationBanner() {
 
         async function fetchNotifications() {
             try {
-                const data = await getActiveNotificationsForUser(user?.uid || null);
+                const data = await getActiveNotificationsForUser(user?.id || null);
                 const bannerNotifications = data.filter(notification => notification.show_banner);
                 setNotifications(bannerNotifications);
                 setIsVisible(bannerNotifications.length > 0);
